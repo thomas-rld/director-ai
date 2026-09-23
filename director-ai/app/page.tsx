@@ -98,7 +98,7 @@ export default function HomePage() {
             }
           >
             <motion.p layout transition={glide} className="text-[11px] tracking-[0.42em] text-slate-400">
-              DIRECTOR.AI
+              Director.AI - Test
             </motion.p>
             <motion.div
               layout
@@ -367,7 +367,7 @@ function GlassField({
           onChange={(event) => onIdea(event.target.value)}
           onFocus={() => onFocusChange(true)}
           onBlur={() => onFocusChange(false)}
-          placeholder="Décrivez la vision de votre scène..."
+          placeholder="Test de l'interface..."
           maxLength={500}
           autoComplete="off"
           disabled={busy}
