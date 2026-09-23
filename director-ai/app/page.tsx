@@ -37,6 +37,10 @@ export default function HomePage() {
       return;
     }
 
+    document.getElementById("reponse")?.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "start",
+    });
     setAppState("loading");
     setError("");
     setPlan(null);
@@ -426,8 +430,8 @@ const threadContainer = {
 };
 
 const threadNode = {
-  hidden: { opacity: 0, y: 28 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease } },
+  hidden: { opacity: 0, y: 36 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.75, ease } },
 };
 
 function CreativeThread({ plan }: { plan: DirectivePlan }) {

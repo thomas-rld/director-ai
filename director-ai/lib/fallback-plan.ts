@@ -18,12 +18,99 @@ type SceneProfile = {
   standard: string;
   tele: string;
   light: string;
+  camera?: string;
   shots: ShotSeed[];
   premiere: string;
   resolve: string;
 };
 
 const PROFILES: SceneProfile[] = [
+  {
+    id: "sport",
+    keywords: [
+      "sport",
+      "foot",
+      "football",
+      "basket",
+      "course",
+      "sprint",
+      "gym",
+      "fitness",
+      "boxe",
+      "tennis",
+      "velo",
+      "vélo",
+      "natation",
+      "stade",
+      "athlete",
+      "athlète",
+      "entrainement",
+      "entraînement",
+      "match",
+    ],
+    title: (scene) => `Sport — ${short(scene)}`,
+    pitch: (scene) =>
+      `« ${scene} » se tourne comme un sujet sportif tenu au trépied : lisibilité du geste, impact, puis souffle. Le Sony A7V ne suit pas l'athlète en courant.`,
+    ambiance:
+      "Clé latérale 5600 K à 45°, remplissage deux diaph en dessous, contour RGB cyan très fin sur la sueur ou le tissu. Le fond reste plus sombre d'un diaph.",
+    sound:
+      "Trois couches : salle ou stade en nappe, impacts (ballon, semelle, corde) en proche, souffle de l'athlète. Aucune musique sur le plateau. Les couches se montent séparément.",
+    wide: "Laowa 10mm à f/8 pour poser le terrain, la ligne et le corps entier sans déformer le geste.",
+    standard: "16-35mm vers 24mm, f/4, pour le déplacement dans l'espace. Tête fluide, pas de filé.",
+    tele: "70-200mm vers 135mm, f/4, mise au point manuelle pré-réglée sur la zone d'impact. Compression du public ou du mur.",
+    light:
+      "Un panneau en clé blanche 5600 K, un second en contour cyan à 20 % derrière le sujet, hors champ. Pas de face plate.",
+    camera:
+      "Sony A7V, 4K 50p. Plans d'action à 100 i/s pour un ralenti propre. Obturateur 1/100 au réel, 1/200 dès que le geste est vif. S-Log3, ISO 800, balance 5600 K, mise au point manuelle.",
+    shots: [
+      {
+        focal: "Laowa 10mm",
+        movement: "Plan fixe, tête verrouillée",
+        angle: "Hauteur de genou",
+        action: (scene) =>
+          `Ouverture de « ${scene} ». Le corps entier entre dans un cadre déjà cadré. On voit l'appui au sol avant le visage. 4K 50p, 1/100.`,
+      },
+      {
+        focal: "16-35mm",
+        movement: "Tilt du sol vers le buste",
+        angle: "Du ras du sol à hauteur de poitrine",
+        action: (scene) =>
+          `Tilt lent sur tête fluide : les appuis, puis le torse. Le geste de « ${scene} » commence pendant le mouvement, il ne le précède pas.`,
+      },
+      {
+        focal: "70-200mm",
+        movement: "Plan fixe, zone de netteté préparée",
+        angle: "Hauteur d'œil",
+        action: (scene) =>
+          `L'impact de « ${scene} » tombe dans une zone faite au 135mm. 100 i/s, obturateur 1/200. On ne refait pas le point pendant le geste.`,
+      },
+      {
+        focal: "70-200mm",
+        movement: "Panoramique court, 15°",
+        angle: "Hauteur d'œil",
+        action: (scene) =>
+          `Accompagnement très court sur tête fluide, freiné avant la fin du geste. « ${scene} » reste lisible, le fond glisse à peine.`,
+      },
+      {
+        focal: "16-35mm",
+        movement: "Plan fixe",
+        angle: "Plongée légère",
+        action: (scene) =>
+          `Le sol, les mains et l'objet de « ${scene} » occupent le bas du cadre. On entend l'impact en synchro avec ce plan.`,
+      },
+      {
+        focal: "Laowa 10mm",
+        movement: "Plan fixe, tenue longue",
+        angle: "Hauteur d'œil",
+        action: (scene) =>
+          `Sortie de « ${scene} » : le corps s'arrête, le souffle reste. Plan assez long pour le son, pas pour un effet.`,
+      },
+    ],
+    premiere:
+      "Monter l'impact au cadre près. Ralenti 40 % seulement sur le plan à 100 i/s. Couper sur le son de l'appui, pas sur la musique.",
+    resolve:
+      "Nœud S-Log3 vers contraste sportif modéré. Peau naturelle, contour cyan conservé, hautes lumières du projecteur tenues.",
+  },
   {
     id: "pluie",
     keywords: ["pluie", "orage", "averse", "flaque", "mouille", "nuit", "nocturne", "neon", "néon"],
@@ -317,11 +404,16 @@ export function buildFallbackPlan(idea: string): DirectivePlan {
       directive: profile.title(scene),
       atmosphere: {
         pitch: profile.pitch(scene),
-        ambiance: profile.ambiance,
-        sound: profile.sound,
+        ambiance: `${profile.ambiance} Lumière : ${profile.light}`,
+        sound: `${profile.sound} Pistes séparées : ambiance, proches, souffle. Rien n'est collé à l'image sur le plateau.`,
       },
       gear_setup: [
-        { name: "Sony A7V", role: "Boîtier unique. Profil log, obturation adaptée au mouvement du plan." },
+        {
+          name: "Sony A7V",
+          role:
+            profile.camera ??
+            "4K 50p, obturateur 180° (1/100), S-Cinetone, ISO 800, balance 5600 K. Mise au point manuelle, profil d'image tenu d'un plan à l'autre.",
+        },
         { name: "Laowa 10mm", role: profile.wide },
         { name: "16-35mm", role: profile.standard },
         { name: "70-200mm", role: profile.tele },
