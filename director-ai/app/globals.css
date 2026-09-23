@@ -1,26 +1,93 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-void: #050505;
+  --color-cyan-glow: #8ef6ff;
+  --color-amber-glow: #ff9a4a;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@property --beam {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+html,
+body {
+  background: #050505;
+  color: #f4f4f5;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(142, 246, 255, 0.28);
+  color: #fff;
+}
+
+.grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/></svg>");
+  mix-blend-mode: overlay;
+}
+
+.prompt-shell {
+  padding: 1px;
+  border-radius: 1.45rem;
+  background: conic-gradient(
+    from var(--beam),
+    rgba(255, 255, 255, 0.14),
+    rgba(142, 246, 255, 0.9),
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 154, 74, 0.85),
+    rgba(255, 255, 255, 0.14)
+  );
+  animation: beam 8s linear infinite;
+}
+
+.prompt-shell:focus-within {
+  filter: drop-shadow(0 0 22px rgba(142, 246, 255, 0.18));
+}
+
+.frame-well {
+  background-image:
+    radial-gradient(120% 80% at 50% 100%, rgba(142, 246, 255, 0.08), transparent 55%),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.045) 0px,
+      rgba(255, 255, 255, 0.045) 1px,
+      transparent 1px,
+      transparent 5px
+    );
+}
+
+.rec-dot {
+  animation: rec 2.4s ease-in-out infinite;
+}
+
+@keyframes beam {
+  to {
+    --beam: 360deg;
+  }
+}
+
+@keyframes rec {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-shell,
+  .rec-dot {
+    animation: none;
+  }
 }
