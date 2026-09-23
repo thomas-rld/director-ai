@@ -2,17 +2,25 @@
 
 import { FormEvent, useState, type ReactNode } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
-import type { DirectivePlan } from "@/lib/plan";
+import { normalizePlan, type DirectivePlan } from "@/lib/plan";
 
-type Phase = "home" | "loading" | "result";
+type AppState = "idle" | "loading" | "success" | "error";
 type OculusMode = "idle" | "focus" | "processing";
+type StepId = (typeof STEPS)[number]["id"];
+
+const STEPS = [
+  { id: "vision", label: "Vision" },
+  { id: "arsenal", label: "Arsenal" },
+  { id: "plateau", label: "Plateau" },
+  { id: "post", label: "Post-Prod" },
+] as const;
 
 const ease = [0.22, 1, 0.36, 1] as const;
 const glide = { layout: { duration: 0.9, ease } };
 
 export default function HomePage() {
   const [idea, setIdea] = useState("");
-  const [phase, setPhase] = useState<Phase>("home");
+  const [appState, setAppState] = useState<AppState>("idle");
   const [plan, setPlan] = useState<DirectivePlan | null>(null);
   const [error, setError] = useState("");
   const [generation, setGeneration] = useState(0);
@@ -22,10 +30,10 @@ export default function HomePage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextIdea = idea.trim();
-    if (nextIdea.length < 2 || phase === "loading") return;
+    if (nextIdea.length < 2 || appState === "loading") return;
 
     window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-    setPhase("loading");
+    setAppState("loading");
     setError("");
     setPlan(null);
     setFocused(false);
@@ -36,32 +44,41 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idea: nextIdea }),
       });
-      const data: unknown = await response.json();
+
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch {
+        setError("Réponse illisible.");
+        setAppState("error");
+        return;
+      }
+
       if (!response.ok) {
         const message =
           data && typeof data === "object" && "error" in data && typeof data.error === "string"
             ? data.error
             : "La génération a échoué.";
         setError(message);
-        setPhase("home");
+        setAppState("error");
         return;
       }
-      if (!data || typeof data !== "object" || !("plan" in data)) {
-        setError("Réponse inattendue.");
-        setPhase("home");
-        return;
-      }
-      setPlan(data.plan as DirectivePlan);
+
+      const raw =
+        data && typeof data === "object" && "plan" in data
+          ? (data as { plan: unknown }).plan
+          : data;
+      setPlan(normalizePlan(raw, nextIdea));
       setGeneration((current) => current + 1);
-      setPhase("result");
+      setAppState("success");
     } catch {
       setError("Le service ne répond pas. Réessayez.");
-      setPhase("home");
+      setAppState("error");
     }
   }
 
-  const mode: OculusMode = phase === "loading" ? "processing" : focused ? "focus" : "idle";
-  const settled = phase === "result";
+  const mode: OculusMode = appState === "loading" ? "processing" : focused ? "focus" : "idle";
+  const settled = appState === "success";
 
   return (
     <div className="relative min-h-svh overflow-x-hidden bg-slate-50 text-slate-900">
@@ -95,7 +112,7 @@ export default function HomePage() {
             </motion.div>
             <motion.div layout transition={glide} className={settled ? "mt-6 w-full" : "mt-10 w-full"}>
               <AnimatePresence>
-                {phase === "loading" ? (
+                {appState === "loading" ? (
                   <motion.p
                     key="scan"
                     initial={{ opacity: 0, y: 6 }}
@@ -110,8 +127,8 @@ export default function HomePage() {
               </AnimatePresence>
               <GlassField
                 idea={idea}
-                error={error}
-                busy={phase === "loading"}
+                error={appState === "error" ? error : ""}
+                busy={appState === "loading"}
                 onIdea={setIdea}
                 onSubmit={onSubmit}
                 onFocusChange={setFocused}
@@ -121,7 +138,7 @@ export default function HomePage() {
         </LayoutGroup>
 
         <AnimatePresence>
-          {settled && plan ? <CreativeThread key={generation} plan={plan} /> : null}
+          {appState === "success" && plan ? <CreativeThread key={generation} plan={plan} /> : null}
         </AnimatePresence>
       </main>
     </div>
@@ -364,7 +381,7 @@ function GlassField({
         </button>
       </div>
       {error ? (
-        <p role="alert" className="mt-4 text-center text-sm text-slate-500">
+        <p role="alert" className="mt-4 text-center text-sm text-slate-700">
           {error}
         </p>
       ) : null}
@@ -410,70 +427,83 @@ function CreativeThread({ plan }: { plan: DirectivePlan }) {
           animate="show"
           variants={reduce ? undefined : threadContainer}
         >
-          <ThreadNode index="01" title="Vision & Idéation">
-            <p className="text-base leading-7 text-slate-900">{plan.directive}</p>
-            <div className="mt-4 space-y-3">
-              <GlassCard title="Pitch" text={plan.atmosphere.pitch} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <GlassCard title="Ambiance" text={plan.atmosphere.ambiance || "À préciser sur le plateau."} />
-                <GlassCard title="Sound design" text={plan.atmosphere.sound || "À préciser au montage."} />
-              </div>
-            </div>
-          </ThreadNode>
-
-          <ThreadNode index="02" title="Arsenal Technique">
-            <ul className="space-y-3">
-              {plan.gear_setup.map((item) => (
-                <li key={item.name} className={glass}>
-                  <div className="flex items-baseline justify-between gap-4">
-                    <p className="text-base text-slate-900">{item.name}</p>
-                    <p className="text-[11px] tracking-[0.16em] text-indigo-600">Validé</p>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">{item.role}</p>
-                </li>
-              ))}
-            </ul>
-          </ThreadNode>
-
-          <ThreadNode index="03" title="Découpage Technique">
-            <ol className="space-y-3">
-              {plan.shotlist.map((shot, index) => (
-                <li key={`${shot.focal}-${index}`} className={glass}>
-                  <p className="text-[11px] tracking-[0.18em] text-slate-400">
-                    Plan {String(index + 1).padStart(2, "0")}
-                  </p>
-                  <p className="mt-2 text-base leading-7 text-slate-900">{shot.action}</p>
-                  <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-500">
-                    <div>
-                      <dt className="text-[11px] text-slate-400">Focale</dt>
-                      <dd>{shot.focal}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[11px] text-slate-400">Mouvement</dt>
-                      <dd>{shot.movement}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[11px] text-slate-400">Angle</dt>
-                      <dd>{shot.angle}</dd>
-                    </div>
-                  </dl>
-                </li>
-              ))}
-            </ol>
-          </ThreadNode>
-
-          <ThreadNode index="04" title="Post-Production">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <GlassCard title="Premiere Pro" text={plan.post_production.premiere || "Montage à préciser."} />
-              <GlassCard
-                title="DaVinci Resolve"
-                text={plan.post_production.resolve || "Étalonnage nodal à préciser."}
-              />
-            </div>
-          </ThreadNode>
+          {STEPS.map((step, index) => (
+            <ThreadNode key={step.id} index={String(index + 1).padStart(2, "0")} title={step.label}>
+              <StepBody id={step.id} plan={plan} />
+            </ThreadNode>
+          ))}
         </motion.ol>
       </div>
     </motion.section>
+  );
+}
+
+function StepBody({ id, plan }: { id: StepId; plan: DirectivePlan }) {
+  if (id === "vision") {
+    return (
+      <div>
+        <p className="text-base leading-7 text-slate-900">{plan.directive}</p>
+        <div className="mt-4 space-y-3">
+          <GlassCard title="Pitch" text={plan.atmosphere.pitch} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <GlassCard title="Ambiance" text={plan.atmosphere.ambiance || "À préciser sur le plateau."} />
+            <GlassCard title="Sound design" text={plan.atmosphere.sound || "À préciser au montage."} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (id === "arsenal") {
+    return (
+      <ul className="space-y-3">
+        {plan.gear_setup.map((item) => (
+          <li key={item.name} className={glass}>
+            <div className="flex items-baseline justify-between gap-4">
+              <p className="text-base text-slate-900">{item.name}</p>
+              <p className="text-[11px] tracking-[0.16em] text-indigo-600">Validé</p>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{item.role}</p>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (id === "plateau") {
+    return (
+      <ol className="space-y-3">
+        {plan.shotlist.map((shot, index) => (
+          <li key={`${shot.focal}-${index}`} className={glass}>
+            <p className="text-[11px] tracking-[0.18em] text-slate-400">
+              Plan {String(index + 1).padStart(2, "0")}
+            </p>
+            <p className="mt-2 text-base leading-7 text-slate-900">{shot.action}</p>
+            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-500">
+              <div>
+                <dt className="text-[11px] text-slate-400">Focale</dt>
+                <dd>{shot.focal}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-slate-400">Mouvement</dt>
+                <dd>{shot.movement}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-slate-400">Angle</dt>
+                <dd>{shot.angle}</dd>
+              </div>
+            </dl>
+          </li>
+        ))}
+      </ol>
+    );
+  }
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <GlassCard title="Premiere Pro" text={plan.post_production.premiere || "Montage à préciser."} />
+      <GlassCard title="DaVinci Resolve" text={plan.post_production.resolve || "Étalonnage nodal à préciser."} />
+    </div>
   );
 }
 
