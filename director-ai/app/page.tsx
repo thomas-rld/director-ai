@@ -2,6 +2,7 @@
 
 import { FormEvent, useState, type ReactNode } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
+import { Camera, Clapperboard, Eye, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { normalizePlan, type DirectivePlan } from "@/lib/plan";
 
 type AppState = "idle" | "loading" | "success" | "error";
@@ -9,11 +10,11 @@ type OculusMode = "idle" | "focus" | "processing";
 type StepId = (typeof STEPS)[number]["id"];
 
 const STEPS = [
-  { id: "vision", label: "Vision" },
-  { id: "arsenal", label: "Arsenal" },
-  { id: "plateau", label: "Plateau" },
-  { id: "post", label: "Post-Prod" },
-] as const;
+  { id: "vision", label: "Vision", icon: Eye },
+  { id: "arsenal", label: "Arsenal", icon: Camera },
+  { id: "plateau", label: "Plateau", icon: Clapperboard },
+  { id: "post", label: "Post-Prod", icon: SlidersHorizontal },
+] as const satisfies readonly { id: string; label: string; icon: LucideIcon }[];
 
 const ease = [0.22, 1, 0.36, 1] as const;
 const glide = { layout: { duration: 0.9, ease } };
@@ -428,7 +429,7 @@ function CreativeThread({ plan }: { plan: DirectivePlan }) {
           variants={reduce ? undefined : threadContainer}
         >
           {STEPS.map((step, index) => (
-            <ThreadNode key={step.id} index={String(index + 1).padStart(2, "0")} title={step.label}>
+            <ThreadNode key={step.id} index={String(index + 1).padStart(2, "0")}>
               <StepBody id={step.id} plan={plan} />
             </ThreadNode>
           ))}
@@ -439,104 +440,107 @@ function CreativeThread({ plan }: { plan: DirectivePlan }) {
 }
 
 function StepBody({ id, plan }: { id: StepId; plan: DirectivePlan }) {
-  if (id === "vision") {
-    return (
-      <div>
-        <p className="text-base leading-7 text-slate-900">{plan.directive}</p>
-        <div className="mt-4 space-y-3">
-          <GlassCard title="Pitch" text={plan.atmosphere.pitch} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <GlassCard title="Ambiance" text={plan.atmosphere.ambiance || "À préciser sur le plateau."} />
-            <GlassCard title="Sound design" text={plan.atmosphere.sound || "À préciser au montage."} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (id === "arsenal") {
-    return (
-      <ul className="space-y-3">
-        {plan.gear_setup.map((item) => (
-          <li key={item.name} className={glass}>
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="text-base text-slate-900">{item.name}</p>
-              <p className="text-[11px] tracking-[0.16em] text-indigo-600">Validé</p>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{item.role}</p>
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  if (id === "plateau") {
-    return (
-      <ol className="space-y-3">
-        {plan.shotlist.map((shot, index) => (
-          <li key={`${shot.focal}-${index}`} className={glass}>
-            <p className="text-[11px] tracking-[0.18em] text-slate-400">
-              Plan {String(index + 1).padStart(2, "0")}
-            </p>
-            <p className="mt-2 text-base leading-7 text-slate-900">{shot.action}</p>
-            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-500">
-              <div>
-                <dt className="text-[11px] text-slate-400">Focale</dt>
-                <dd>{shot.focal}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] text-slate-400">Mouvement</dt>
-                <dd>{shot.movement}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] text-slate-400">Angle</dt>
-                <dd>{shot.angle}</dd>
-              </div>
-            </dl>
-          </li>
-        ))}
-      </ol>
-    );
-  }
+  const step = STEPS.find((item) => item.id === id) ?? STEPS[0];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <GlassCard title="Premiere Pro" text={plan.post_production.premiere || "Montage à préciser."} />
-      <GlassCard title="DaVinci Resolve" text={plan.post_production.resolve || "Étalonnage nodal à préciser."} />
+    <article className={glass}>
+      <CardHeader icon={step.icon} title={step.label} />
+      {id === "vision" ? <VisionBody plan={plan} /> : null}
+      {id === "arsenal" ? <ArsenalBody plan={plan} /> : null}
+      {id === "plateau" ? <PlateauBody plan={plan} /> : null}
+      {id === "post" ? <PostBody plan={plan} /> : null}
+    </article>
+  );
+}
+
+function VisionBody({ plan }: { plan: DirectivePlan }) {
+  return (
+    <div className="space-y-8">
+      <p className="text-base leading-relaxed text-slate-800">{plan.directive}</p>
+      <Field label="Pitch" text={plan.atmosphere.pitch} />
+      <div className="grid gap-8 sm:grid-cols-2">
+        <Field label="Ambiance" text={plan.atmosphere.ambiance || "À préciser sur le plateau."} />
+        <Field label="Sound design" text={plan.atmosphere.sound || "À préciser au montage."} />
+      </div>
     </div>
   );
 }
 
-function ThreadNode({
-  index,
-  title,
-  children,
-}: {
-  index: string;
-  title: string;
-  children: ReactNode;
-}) {
+function ArsenalBody({ plan }: { plan: DirectivePlan }) {
+  return (
+    <ul>
+      {plan.gear_setup.map((item) => (
+        <li
+          key={item.name}
+          className="flex flex-col gap-3 border-b border-slate-100 py-4 first:pt-0 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">{item.name}</span>
+          <p className="text-sm leading-relaxed text-slate-800 sm:max-w-[60%] sm:text-right">{item.role}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PlateauBody({ plan }: { plan: DirectivePlan }) {
+  return (
+    <ol>
+      {plan.shotlist.map((shot, index) => (
+        <li key={`${shot.focal}-${index}`} className="border-b border-slate-100 py-5 first:pt-0 last:border-0 last:pb-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold tracking-widest text-slate-400">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <span className="rounded-full bg-slate-900 px-3 py-1 text-sm text-white">{shot.focal}</span>
+            <span className="text-sm font-semibold text-slate-800">{shot.movement}</span>
+            <span className="text-sm text-slate-500">{shot.angle}</span>
+          </div>
+          <p className="mt-3 text-base leading-relaxed text-slate-800">{shot.action}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function PostBody({ plan }: { plan: DirectivePlan }) {
+  return (
+    <div className="grid gap-8 sm:grid-cols-2">
+      <Field label="Premiere Pro" text={plan.post_production.premiere || "Montage à préciser."} />
+      <Field label="DaVinci Resolve" text={plan.post_production.resolve || "Étalonnage nodal à préciser."} />
+    </div>
+  );
+}
+
+function CardHeader({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+  return (
+    <div className="mb-6 flex items-center gap-2.5">
+      <Icon className="h-4 w-4 text-slate-400" strokeWidth={1.5} aria-hidden />
+      <h2 className="text-xs font-semibold tracking-widest text-slate-400 uppercase">{title}</h2>
+    </div>
+  );
+}
+
+function Field({ label, text }: { label: string; text: string }) {
+  return (
+    <div>
+      <h3 className="text-xs font-semibold tracking-widest text-slate-400 uppercase">{label}</h3>
+      <p className="mt-2 text-base leading-relaxed text-slate-800">{text}</p>
+    </div>
+  );
+}
+
+function ThreadNode({ index, children }: { index: string; children: ReactNode }) {
   return (
     <motion.li variants={threadNode} className="relative pl-12">
       <span
         aria-hidden
-        className="absolute left-3 top-1.5 z-10 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-white shadow-[0_0_0_5px_#f8fafc,0_0_16px_rgba(103,232,249,0.95)] ring-1 ring-cyan-200"
+        className="absolute left-3 top-8 z-10 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-white shadow-[0_0_0_5px_#f8fafc,0_0_16px_rgba(103,232,249,0.95)] ring-1 ring-cyan-200"
       />
-      <p className="text-[11px] tracking-[0.2em] text-slate-400">{index}</p>
-      <h2 className="mt-1 text-2xl font-medium tracking-tight text-slate-900">{title}</h2>
-      <div className="mt-4">{children}</div>
+      <p className="mb-3 text-[11px] font-semibold tracking-widest text-slate-400">{index}</p>
+      {children}
     </motion.li>
   );
 }
 
 const glass =
-  "rounded-3xl border border-slate-200/50 bg-white/40 px-5 py-5 shadow-xl shadow-slate-200/50 backdrop-blur-2xl";
-
-function GlassCard({ title, text }: { title: string; text: string }) {
-  return (
-    <article className={glass}>
-      <h2 className="text-[11px] tracking-[0.18em] text-slate-400">{title}</h2>
-      <p className="mt-2 text-base leading-7 text-slate-900">{text}</p>
-    </article>
-  );
-}
+  "rounded-3xl border border-slate-200/50 bg-white/40 p-6 shadow-xl shadow-slate-200/50 backdrop-blur-2xl sm:p-8";
