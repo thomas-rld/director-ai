@@ -13,44 +13,9 @@ const STEPS = [
 
 type StepId = (typeof STEPS)[number]["id"];
 type Phase = "home" | "loading" | "result";
+type OculusMode = "idle" | "focus" | "processing";
 
 const ease = [0.22, 1, 0.36, 1] as const;
-
-type Neuron = { x: number; y: number; dx: number; dy: number };
-
-const NEURONS: Neuron[] = [
-  { x: 34, y: 30, dx: 0.9, dy: 0.5 },
-  { x: 24, y: 46, dx: -0.7, dy: 0.6 },
-  { x: 23, y: 62, dx: 0.6, dy: -0.5 },
-  { x: 32, y: 76, dx: 0.5, dy: 0.7 },
-  { x: 44, y: 22, dx: -0.4, dy: 0.6 },
-  { x: 42, y: 40, dx: 0.7, dy: -0.4 },
-  { x: 40, y: 56, dx: -0.5, dy: 0.6 },
-  { x: 46, y: 72, dx: 0.4, dy: 0.5 },
-  { x: 50, y: 32, dx: 0.2, dy: 0.7 },
-  { x: 50, y: 50, dx: -0.3, dy: -0.5 },
-  { x: 50, y: 68, dx: 0.3, dy: 0.4 },
-  { x: 56, y: 22, dx: 0.4, dy: -0.5 },
-  { x: 58, y: 40, dx: -0.6, dy: 0.5 },
-  { x: 60, y: 56, dx: 0.5, dy: -0.6 },
-  { x: 54, y: 72, dx: -0.4, dy: 0.5 },
-  { x: 66, y: 30, dx: -0.8, dy: 0.4 },
-  { x: 76, y: 46, dx: 0.7, dy: -0.5 },
-  { x: 77, y: 62, dx: -0.6, dy: 0.6 },
-  { x: 68, y: 76, dx: 0.5, dy: -0.4 },
-  { x: 44, y: 86, dx: 0.3, dy: 0.4 },
-  { x: 56, y: 86, dx: -0.3, dy: 0.5 },
-  { x: 50, y: 94, dx: 0.2, dy: -0.3 },
-];
-
-const SYNAPSES: [number, number][] = [
-  [0, 4], [4, 5], [0, 1], [1, 2], [2, 3], [3, 7], [7, 19],
-  [0, 5], [1, 6], [2, 6], [5, 6], [6, 7], [5, 8], [6, 9], [7, 10],
-  [8, 9], [9, 10], [8, 12], [9, 13], [10, 14], [10, 19], [10, 20],
-  [15, 11], [11, 12], [15, 16], [16, 17], [17, 18], [18, 14], [14, 20],
-  [12, 13], [13, 14], [16, 12], [17, 13], [18, 13],
-  [19, 21], [20, 21], [19, 20], [4, 11], [3, 19], [18, 20],
-];
 
 export default function HomePage() {
   const [idea, setIdea] = useState("");
@@ -58,6 +23,7 @@ export default function HomePage() {
   const [plan, setPlan] = useState<DirectivePlan | null>(null);
   const [error, setError] = useState("");
   const [step, setStep] = useState(0);
+  const [focused, setFocused] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,6 +33,7 @@ export default function HomePage() {
     setPhase("loading");
     setError("");
     setPlan(null);
+    setFocused(false);
 
     try {
       const response = await fetch("/api/generate", {
@@ -104,14 +71,15 @@ export default function HomePage() {
     setError("");
     setIdea("");
     setStep(0);
+    setFocused(false);
   }
 
-  const active = phase === "loading";
+  const mode: OculusMode = phase === "loading" ? "processing" : focused ? "focus" : "idle";
 
   return (
-    <div className="relative min-h-svh overflow-x-hidden bg-white text-slate-900">
+    <div className="relative min-h-svh overflow-x-hidden bg-slate-50 text-slate-900">
       <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_center,rgba(224,231,255,0.85),rgba(255,255,255,0)_58%)]"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.95),rgba(248,250,252,0)_62%)]"
         aria-hidden
       />
 
@@ -121,19 +89,21 @@ export default function HomePage() {
           step={step}
           onStep={setStep}
           onReset={reset}
-          core={<NeuralBrain active={false} compact />}
+          core={<OpticalOculus mode="idle" compact />}
         />
       ) : (
-        <main className="relative z-10 mx-auto flex min-h-svh w-full min-w-0 max-w-3xl flex-col items-center justify-center px-6">
-          <p className="mb-8 text-[11px] tracking-[0.42em] text-slate-400">DIRECTOR.AI</p>
-          <motion.div
-            layoutId="neural-brain"
-            transition={{ type: "spring", stiffness: 90, damping: 18 }}
-            className="h-[min(72vw,320px)] w-[min(78vw,380px)]"
-          >
-            <NeuralBrain active={active} />
-          </motion.div>
-          <div className="mt-12 w-full min-w-0 max-w-xl">
+        <main className="relative z-10 mx-auto flex min-h-svh w-full min-w-0 max-w-3xl flex-col items-center px-6 pb-8 pt-10 sm:pb-10">
+          <p className="text-[11px] tracking-[0.42em] text-slate-400">DIRECTOR.AI</p>
+          <div className="flex min-h-0 w-full flex-1 items-center justify-center py-8">
+            <motion.div
+              layoutId="optical-oculus"
+              transition={{ type: "spring", stiffness: 90, damping: 18 }}
+              className="h-[min(62vw,280px)] w-[min(62vw,280px)]"
+            >
+              <OpticalOculus mode={mode} />
+            </motion.div>
+          </div>
+          <div className="w-full min-w-0 max-w-xl">
             <AnimatePresence mode="wait">
               {phase === "home" ? (
                 <GlassField
@@ -142,6 +112,7 @@ export default function HomePage() {
                   error={error}
                   onIdea={setIdea}
                   onSubmit={onSubmit}
+                  onFocusChange={setFocused}
                 />
               ) : (
                 <motion.p
@@ -152,7 +123,7 @@ export default function HomePage() {
                   transition={{ duration: 0.45, ease }}
                   className="text-center text-sm text-slate-500"
                 >
-                  Analyse des paramètres de réalisation...
+                  Compilation du découpage technique...
                 </motion.p>
               )}
             </AnimatePresence>
@@ -163,64 +134,198 @@ export default function HomePage() {
   );
 }
 
-function NeuralBrain({ active, compact = false }: { active: boolean; compact?: boolean }) {
+function OpticalOculus({ mode, compact = false }: { mode: OculusMode; compact?: boolean }) {
   const reduce = useReducedMotion();
-  const duration = active ? 1.2 : 5.6;
+  const processing = mode === "processing" && !compact;
+  const focus = mode === "focus" && !compact;
+
+  const spin = (reverse: boolean) => (reduce ? { rotate: 0 } : { rotate: reverse ? -360 : 360 });
+  const linear = (seconds: number) => ({
+    duration: processing ? Math.max(4, seconds * 0.22) : seconds,
+    repeat: reduce ? 0 : Infinity,
+    ease: "linear" as const,
+  });
 
   return (
-    <div className="relative h-full w-full">
-      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
-        {SYNAPSES.map(([fromIndex, toIndex]) => {
-          const from = NEURONS[fromIndex];
-          const to = NEURONS[toIndex];
-          if (!from || !to) return null;
-          return (
-            <motion.line
-              key={`${fromIndex}-${toIndex}`}
-              stroke={active ? "#6366f1" : "#c5d0de"}
-              strokeWidth={compact ? 1.15 : 0.38}
-              strokeLinecap="round"
-              animate={
-                reduce
-                  ? { x1: from.x, y1: from.y, x2: to.x, y2: to.y, opacity: 0.55 }
-                  : {
-                      x1: [from.x, from.x + from.dx, from.x - from.dx * 0.45, from.x],
-                      y1: [from.y, from.y + from.dy, from.y - from.dy * 0.4, from.y],
-                      x2: [to.x, to.x + to.dx, to.x - to.dx * 0.45, to.x],
-                      y2: [to.y, to.y + to.dy, to.y - to.dy * 0.4, to.y],
-                      opacity: active ? [0.45, 1, 0.45] : [0.28, 0.62, 0.28],
-                    }
-              }
-              transition={{ duration, repeat: reduce ? 0 : Infinity, ease: "easeInOut" }}
-            />
-          );
-        })}
-      </svg>
-      {NEURONS.map((node) => (
-        <motion.span
-          key={`${node.x}-${node.y}`}
-          className={`absolute rounded-full ${compact ? "h-1 w-1" : "h-1.5 w-1.5"} ${
-            active ? "bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.65)]" : "bg-slate-400"
-          }`}
-          style={{ x: "-50%", y: "-50%" }}
-          animate={
-            reduce
-              ? { left: `${node.x}%`, top: `${node.y}%`, scale: 1 }
-              : {
-                  left: [`${node.x}%`, `${node.x + node.dx}%`, `${node.x - node.dx * 0.45}%`, `${node.x}%`],
-                  top: [`${node.y}%`, `${node.y + node.dy}%`, `${node.y - node.dy * 0.4}%`, `${node.y}%`],
-                  scale: active ? [1, 1.45, 1] : [1, 1.12, 1],
-                }
-          }
+    <motion.div
+      className="relative h-full w-full"
+      animate={{ scale: focus ? 0.92 : 1 }}
+      transition={{ type: "spring", stiffness: 150, damping: 20 }}
+      aria-hidden
+    >
+      <motion.div
+        className={`pointer-events-none absolute inset-[30%] rounded-full ${compact ? "blur-sm" : "blur-xl"}`}
+        style={{
+          background:
+            "radial-gradient(circle at 36% 38%, rgba(165,243,252,0.85), transparent 58%), radial-gradient(circle at 68% 64%, rgba(251,207,232,0.7), transparent 54%)",
+        }}
+        animate={{
+          opacity: processing ? 1 : focus ? 0.62 : 0.34,
+          scale: reduce ? 1 : processing ? [1, 1.28, 1] : [0.94, 1.06, 0.94],
+        }}
+        transition={{
+          duration: processing ? 1.5 : 4.8,
+          repeat: reduce ? 0 : Infinity,
+          ease: "easeInOut",
+        }}
+      />
+
+      <GlassRing inset="2%" duration={56} reverse={false} mark="cyan" reduce={reduce} linear={linear} spin={spin} />
+
+      <motion.div
+        className="absolute inset-0"
+        animate={{ scale: processing ? 0.68 : focus ? 0.9 : 1 }}
+        transition={{ type: "spring", stiffness: 130, damping: 18 }}
+      >
+        <GlassRing inset="14%" duration={42} reverse mark="magenta" reduce={reduce} linear={linear} spin={spin} />
+        {!compact ? (
+          <GlassRing inset="28%" duration={30} reverse={false} mark="slate" reduce={reduce} linear={linear} spin={spin} />
+        ) : null}
+        <BladeField
+          duration={processing ? 8 : 48}
+          reverse
+          reduce={reduce}
+          compact={compact}
+          radius={compact ? 74 : 78}
+          count={6}
+          sweep={34}
+          stroke={compact ? 3.2 : 1.15}
+        />
+        {!compact ? (
+          <BladeField
+            duration={processing ? 6 : 36}
+            reverse={false}
+            reduce={reduce}
+            compact={false}
+            radius={58}
+            count={3}
+            sweep={78}
+            stroke={0.9}
+          />
+        ) : null}
+      </motion.div>
+
+      <motion.div
+        className="absolute inset-[38%]"
+        animate={{ scale: processing ? 0.58 : focus ? 0.84 : 1 }}
+        transition={{ type: "spring", stiffness: 170, damping: 18 }}
+      >
+        <motion.div
+          className="h-full w-full rounded-full border border-slate-200 bg-white/40 backdrop-blur-md"
+          style={{
+            boxShadow: processing
+              ? "inset 0 0 22px rgba(103,232,249,0.85), inset 0 0 36px rgba(244,114,182,0.55)"
+              : "inset 0 0 16px rgba(165,243,252,0.7), inset 0 0 28px rgba(251,207,232,0.45)",
+          }}
+          animate={{ scale: reduce ? 1 : processing ? [0.92, 1.12, 0.92] : [0.97, 1.06, 0.97] }}
           transition={{
-            duration,
+            duration: processing ? 1.25 : 4.4,
             repeat: reduce ? 0 : Infinity,
             ease: "easeInOut",
           }}
         />
-      ))}
-    </div>
+      </motion.div>
+
+      {!compact ? (
+        <div className="pointer-events-none absolute left-[20%] top-[14%] h-[24%] w-[16%] rounded-full bg-white/80 blur-md" />
+      ) : null}
+    </motion.div>
   );
+}
+
+function GlassRing({
+  inset,
+  duration,
+  reverse,
+  mark,
+  reduce,
+  linear,
+  spin,
+}: {
+  inset: string;
+  duration: number;
+  reverse: boolean;
+  mark: "cyan" | "magenta" | "slate";
+  reduce: boolean | null;
+  linear: (seconds: number) => { duration: number; repeat: number; ease: "linear" };
+  spin: (reverse: boolean) => { rotate: number };
+}) {
+  const markClass =
+    mark === "cyan"
+      ? "from-cyan-300/80"
+      : mark === "magenta"
+        ? "from-fuchsia-300/70"
+        : "from-slate-300/80";
+
+  return (
+    <motion.div
+      className="absolute"
+      style={{ inset }}
+      animate={spin(reverse)}
+      transition={linear(reduce ? 0 : duration)}
+    >
+      <div className="absolute inset-0 rounded-full border border-slate-300/80" />
+      <div
+        className="absolute inset-[3%] rounded-full bg-white/40 backdrop-blur-md"
+        style={{
+          WebkitMaskImage: "radial-gradient(circle, transparent 84%, #000 94%)",
+          maskImage: "radial-gradient(circle, transparent 84%, #000 94%)",
+        }}
+      />
+      <span
+        className={`absolute left-1/2 top-0 h-[14%] w-px -translate-x-1/2 bg-gradient-to-b ${markClass} to-transparent`}
+      />
+    </motion.div>
+  );
+}
+
+function BladeField({
+  duration,
+  reverse,
+  reduce,
+  compact,
+  radius,
+  count,
+  sweep,
+  stroke,
+}: {
+  duration: number;
+  reverse: boolean;
+  reduce: boolean | null;
+  compact: boolean;
+  radius: number;
+  count: number;
+  sweep: number;
+  stroke: number;
+}) {
+  return (
+    <motion.svg
+      viewBox="0 0 200 200"
+      className={`absolute overflow-visible ${compact ? "inset-[6%]" : "inset-[4%]"}`}
+      animate={reduce ? { rotate: 0 } : { rotate: reverse ? -360 : 360 }}
+      transition={{ duration, repeat: reduce ? 0 : Infinity, ease: "linear" }}
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <path
+          key={index}
+          d={arc(100, 100, radius, (360 / count) * index - sweep / 2, sweep)}
+          fill="none"
+          stroke={index % 2 === 0 ? "#94a3b8" : "#cbd5e1"}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+        />
+      ))}
+    </motion.svg>
+  );
+}
+
+function arc(cx: number, cy: number, radius: number, startDeg: number, sweep: number) {
+  const rad = (deg: number) => (deg * Math.PI) / 180;
+  const x1 = cx + Math.cos(rad(startDeg)) * radius;
+  const y1 = cy + Math.sin(rad(startDeg)) * radius;
+  const x2 = cx + Math.cos(rad(startDeg + sweep)) * radius;
+  const y2 = cy + Math.sin(rad(startDeg + sweep)) * radius;
+  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${radius} ${radius} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
 }
 
 function GlassField({
@@ -228,11 +333,13 @@ function GlassField({
   error,
   onIdea,
   onSubmit,
+  onFocusChange,
 }: {
   idea: string;
   error: string;
   onIdea: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onFocusChange: (focused: boolean) => void;
 }) {
   return (
     <motion.form
@@ -251,6 +358,8 @@ function GlassField({
           id="vision"
           value={idea}
           onChange={(event) => onIdea(event.target.value)}
+          onFocus={() => onFocusChange(true)}
+          onBlur={() => onFocusChange(false)}
           placeholder="Décrivez la vision de votre scène..."
           maxLength={500}
           autoComplete="off"
@@ -298,9 +407,9 @@ function Sequencer({
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <motion.div
-            layoutId="neural-brain"
+            layoutId="optical-oculus"
             transition={{ type: "spring", stiffness: 90, damping: 18 }}
-            className="h-12 w-14"
+            className="h-11 w-11"
           >
             {core}
           </motion.div>
