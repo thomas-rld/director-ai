@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { normalizePlan } from "@/lib/plan";
+import { buildFallbackPlan } from "@/lib/fallback-plan";
+import { normalizePlan, type DirectivePlan } from "@/lib/plan";
+
+const OPENAI_TIMEOUT_MS = 8000;
 
 export const runtime = "nodejs";
 
@@ -39,20 +42,27 @@ export async function POST(request: Request) {
     );
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "Ajoutez OPENAI_API_KEY dans .env.local pour continuer." },
-      { status: 500 },
-    );
+  try {
+    const plan = await generateWithOpenAI(idea);
+    return NextResponse.json({ plan });
+  } catch (error) {
+    console.error("OpenAI indisponible, secours local", error instanceof Error ? error.message : error);
+    return NextResponse.json({ plan: buildFallbackPlan(idea), source: "local" });
   }
+}
+
+async function generateWithOpenAI(idea: string): Promise<DirectivePlan> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY absente");
 
   const model = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
-  let upstream: Response;
   try {
-    upstream = await fetch("https://api.openai.com/v1/chat/completions", {
+    const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -67,55 +77,44 @@ export async function POST(request: Request) {
         ],
       }),
     });
-  } catch (error) {
-    console.error("OpenAI error", error);
-    return NextResponse.json(
-      { error: "La connexion à OpenAI a échoué. Réessayez." },
-      { status: 502 },
-    );
-  }
 
-  if (!upstream.ok) {
-    let detail = "La génération a échoué. Réessayez.";
-    try {
-      const body: unknown = await upstream.json();
-      const message =
-        body &&
-        typeof body === "object" &&
-        "error" in body &&
-        body.error &&
-        typeof body.error === "object" &&
-        "message" in body.error &&
-        typeof body.error.message === "string"
-          ? body.error.message
-          : "";
-      if (message.trim()) detail = message.replace(/sk-[A-Za-z0-9_-]+/g, "sk-…");
-      console.error("OpenAI error", upstream.status, detail);
-    } catch (error) {
-      console.error("OpenAI error", upstream.status, error);
+    if (!upstream.ok) {
+      const detail = await readOpenAIError(upstream);
+      throw new Error(detail);
     }
-    return NextResponse.json({ error: detail }, { status: 502 });
+
+    const data: unknown = await upstream.json();
+    const content =
+      data &&
+      typeof data === "object" &&
+      "choices" in data &&
+      Array.isArray(data.choices)
+        ? data.choices[0]?.message?.content
+        : undefined;
+
+    if (typeof content !== "string") throw new Error("Réponse OpenAI incomplète");
+    return normalizePlan(JSON.parse(content) as unknown, idea);
+  } finally {
+    clearTimeout(timer);
   }
+}
 
-  const data: unknown = await upstream.json();
-  const content =
-    data &&
-    typeof data === "object" &&
-    "choices" in data &&
-    Array.isArray(data.choices)
-      ? data.choices[0]?.message?.content
-      : undefined;
-
-  if (typeof content !== "string") {
-    return NextResponse.json({ error: "Réponse incomplète. Relancez." }, { status: 502 });
-  }
-
-  let parsed: unknown;
+async function readOpenAIError(upstream: Response): Promise<string> {
   try {
-    parsed = JSON.parse(content);
+    const body: unknown = await upstream.json();
+    const message =
+      body &&
+      typeof body === "object" &&
+      "error" in body &&
+      body.error &&
+      typeof body.error === "object" &&
+      "message" in body.error &&
+      typeof body.error.message === "string"
+        ? body.error.message
+        : "";
+    const safe = message.replace(/sk-[A-Za-z0-9_-]+/g, "sk-…").trim();
+    return safe || `OpenAI ${upstream.status}`;
   } catch {
-    return NextResponse.json({ error: "Le plan reçu n'était pas un JSON valide." }, { status: 502 });
+    return `OpenAI ${upstream.status}`;
   }
-
-  return NextResponse.json({ plan: normalizePlan(parsed, idea) });
 }
