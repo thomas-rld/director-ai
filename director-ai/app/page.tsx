@@ -1,35 +1,30 @@
 "use client";
 
 import { FormEvent, useState, type ReactNode } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import type { DirectivePlan } from "@/lib/plan";
 
-const STEPS = [
-  { id: "vision", label: "Vision" },
-  { id: "arsenal", label: "Arsenal" },
-  { id: "plateau", label: "Plateau" },
-  { id: "post", label: "Post-Prod" },
-] as const;
-
-type StepId = (typeof STEPS)[number]["id"];
 type Phase = "home" | "loading" | "result";
 type OculusMode = "idle" | "focus" | "processing";
 
 const ease = [0.22, 1, 0.36, 1] as const;
+const glide = { layout: { duration: 0.9, ease } };
 
 export default function HomePage() {
   const [idea, setIdea] = useState("");
   const [phase, setPhase] = useState<Phase>("home");
   const [plan, setPlan] = useState<DirectivePlan | null>(null);
   const [error, setError] = useState("");
-  const [step, setStep] = useState(0);
+  const [generation, setGeneration] = useState(0);
   const [focused, setFocused] = useState(false);
+  const reduce = useReducedMotion();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextIdea = idea.trim();
     if (nextIdea.length < 2 || phase === "loading") return;
 
+    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
     setPhase("loading");
     setError("");
     setPlan(null);
@@ -57,7 +52,7 @@ export default function HomePage() {
         return;
       }
       setPlan(data.plan as DirectivePlan);
-      setStep(0);
+      setGeneration((current) => current + 1);
       setPhase("result");
     } catch {
       setError("Le service ne répond pas. Réessayez.");
@@ -65,16 +60,8 @@ export default function HomePage() {
     }
   }
 
-  function reset() {
-    setPhase("home");
-    setPlan(null);
-    setError("");
-    setIdea("");
-    setStep(0);
-    setFocused(false);
-  }
-
   const mode: OculusMode = phase === "loading" ? "processing" : focused ? "focus" : "idle";
+  const settled = phase === "result";
 
   return (
     <div className="relative min-h-svh overflow-x-hidden bg-slate-50 text-slate-900">
@@ -83,53 +70,60 @@ export default function HomePage() {
         aria-hidden
       />
 
-      {phase === "result" && plan ? (
-        <Sequencer
-          plan={plan}
-          step={step}
-          onStep={setStep}
-          onReset={reset}
-          core={<OpticalOculus mode="idle" compact />}
-        />
-      ) : (
-        <main className="relative z-10 mx-auto flex min-h-svh w-full min-w-0 max-w-3xl flex-col items-center px-6 pb-8 pt-10 sm:pb-10">
-          <p className="text-[11px] tracking-[0.42em] text-slate-400">DIRECTOR.AI</p>
-          <div className="flex min-h-0 w-full flex-1 items-center justify-center py-8">
+      <main className="relative z-10">
+        <LayoutGroup>
+          <div
+            className={
+              settled
+                ? "mx-auto flex w-full max-w-xl flex-col items-center px-6 pb-2 pt-8"
+                : "mx-auto flex min-h-svh w-full max-w-xl flex-col items-center justify-center px-6 pb-8 pt-10"
+            }
+          >
+            <motion.p layout transition={glide} className="text-[11px] tracking-[0.42em] text-slate-400">
+              DIRECTOR.AI
+            </motion.p>
             <motion.div
-              layoutId="optical-oculus"
-              transition={{ type: "spring", stiffness: 90, damping: 18 }}
-              className="h-[min(62vw,280px)] w-[min(62vw,280px)]"
+              layout
+              transition={glide}
+              className={
+                settled
+                  ? "mt-5 h-32 w-32 sm:h-36 sm:w-36"
+                  : "mt-8 h-[min(62vw,280px)] w-[min(62vw,280px)]"
+              }
             >
               <OpticalOculus mode={mode} />
             </motion.div>
+            <motion.div layout transition={glide} className={settled ? "mt-6 w-full" : "mt-10 w-full"}>
+              <AnimatePresence>
+                {phase === "loading" ? (
+                  <motion.p
+                    key="scan"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.35, ease }}
+                    className="mb-4 text-center text-sm text-slate-500"
+                  >
+                    Compilation du découpage technique...
+                  </motion.p>
+                ) : null}
+              </AnimatePresence>
+              <GlassField
+                idea={idea}
+                error={error}
+                busy={phase === "loading"}
+                onIdea={setIdea}
+                onSubmit={onSubmit}
+                onFocusChange={setFocused}
+              />
+            </motion.div>
           </div>
-          <div className="w-full min-w-0 max-w-xl">
-            <AnimatePresence mode="wait">
-              {phase === "home" ? (
-                <GlassField
-                  key="field"
-                  idea={idea}
-                  error={error}
-                  onIdea={setIdea}
-                  onSubmit={onSubmit}
-                  onFocusChange={setFocused}
-                />
-              ) : (
-                <motion.p
-                  key="scan"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.45, ease }}
-                  className="text-center text-sm text-slate-500"
-                >
-                  Compilation du découpage technique...
-                </motion.p>
-              )}
-            </AnimatePresence>
-          </div>
-        </main>
-      )}
+        </LayoutGroup>
+
+        <AnimatePresence>
+          {settled && plan ? <CreativeThread key={generation} plan={plan} /> : null}
+        </AnimatePresence>
+      </main>
     </div>
   );
 }
@@ -331,25 +325,20 @@ function arc(cx: number, cy: number, radius: number, startDeg: number, sweep: nu
 function GlassField({
   idea,
   error,
+  busy,
   onIdea,
   onSubmit,
   onFocusChange,
 }: {
   idea: string;
   error: string;
+  busy: boolean;
   onIdea: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onFocusChange: (focused: boolean) => void;
 }) {
   return (
-    <motion.form
-      onSubmit={onSubmit}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.4, ease }}
-      className="w-full min-w-0"
-    >
+    <motion.form layout transition={glide} onSubmit={onSubmit} className="w-full min-w-0">
       <label htmlFor="vision" className="sr-only">
         Vision de la scène
       </label>
@@ -363,11 +352,12 @@ function GlassField({
           placeholder="Décrivez la vision de votre scène..."
           maxLength={500}
           autoComplete="off"
-          className="h-12 w-full min-w-0 flex-1 bg-transparent px-4 text-base text-slate-900 outline-none placeholder:text-slate-400"
+          disabled={busy}
+          className="h-12 w-full min-w-0 flex-1 bg-transparent px-4 text-base text-slate-900 outline-none placeholder:text-slate-400 disabled:text-slate-400"
         />
         <button
           type="submit"
-          disabled={idea.trim().length < 2}
+          disabled={busy || idea.trim().length < 2}
           className="h-11 w-full shrink-0 rounded-full bg-slate-900 px-5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
         >
           Entrer
@@ -382,175 +372,130 @@ function GlassField({
   );
 }
 
-function Sequencer({
-  plan,
-  step,
-  onStep,
-  onReset,
-  core,
-}: {
-  plan: DirectivePlan;
-  step: number;
-  onStep: (index: number) => void;
-  onReset: () => void;
-  core: ReactNode;
-}) {
-  const current = STEPS[step] ?? STEPS[0];
+const threadContainer = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.18, delayChildren: 0.32 },
+  },
+};
+
+const threadNode = {
+  hidden: { opacity: 0, y: 22 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease } },
+};
+
+function CreativeThread({ plan }: { plan: DirectivePlan }) {
+  const reduce = useReducedMotion();
 
   return (
-    <motion.div
+    <motion.section
+      aria-label="Fil de création"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.5, ease }}
-      className="relative z-10 mx-auto flex min-h-svh w-full max-w-5xl flex-col px-5 py-6 sm:px-8"
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.35, ease }}
+      className="relative z-10 mx-auto mt-10 w-full max-w-2xl px-6 pb-28"
     >
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <motion.div
-            layoutId="optical-oculus"
-            transition={{ type: "spring", stiffness: 90, damping: 18 }}
-            className="h-11 w-11"
-          >
-            {core}
-          </motion.div>
-          <span className="text-sm tracking-[0.28em] text-slate-400">DIRECTOR.AI</span>
-        </div>
-        <button
-          type="button"
-          onClick={onReset}
-          className="text-sm text-slate-500 transition hover:text-slate-900"
+      <div className="relative">
+        <motion.div
+          aria-hidden
+          className="absolute left-3 top-0 w-px -translate-x-1/2 bg-[linear-gradient(to_bottom,#cbd5e1_0%,#e2e8f0_92%,transparent_100%)]"
+          initial={{ height: reduce ? "100%" : 0 }}
+          animate={{ height: "100%" }}
+          transition={{ duration: reduce ? 0 : 1.25, ease }}
+        />
+        <motion.ol
+          className="space-y-10"
+          initial="hidden"
+          animate="show"
+          variants={reduce ? undefined : threadContainer}
         >
-          Nouvelle vision
-        </button>
-      </header>
+          <ThreadNode index="01" title="Vision & Idéation">
+            <p className="text-base leading-7 text-slate-900">{plan.directive}</p>
+            <div className="mt-4 space-y-3">
+              <GlassCard title="Pitch" text={plan.atmosphere.pitch} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <GlassCard title="Ambiance" text={plan.atmosphere.ambiance || "À préciser sur le plateau."} />
+                <GlassCard title="Sound design" text={plan.atmosphere.sound || "À préciser au montage."} />
+              </div>
+            </div>
+          </ThreadNode>
 
-      <div className="mt-10 grid flex-1 gap-6 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8">
-        <nav aria-label="Séquencier" className="flex gap-2 overflow-x-auto md:flex-col">
-          {STEPS.map((item, index) => {
-            const selected = index === step;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onStep(index)}
-                aria-current={selected ? "step" : undefined}
-                className={`min-w-[9.5rem] rounded-3xl border px-4 py-3 text-left backdrop-blur-2xl transition md:min-w-0 ${
-                  selected
-                    ? "border-slate-200/50 bg-white/70 text-slate-900 shadow-xl shadow-slate-200/50"
-                    : "border-transparent text-slate-400 hover:bg-white/50 hover:text-slate-700"
-                }`}
-              >
-                <span className="text-[11px] tracking-[0.18em] text-slate-400">0{index + 1}</span>
-                <span className="mt-1 block text-sm font-medium">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+          <ThreadNode index="02" title="Arsenal Technique">
+            <ul className="space-y-3">
+              {plan.gear_setup.map((item) => (
+                <li key={item.name} className={glass}>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <p className="text-base text-slate-900">{item.name}</p>
+                    <p className="text-[11px] tracking-[0.16em] text-indigo-600">Validé</p>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">{item.role}</p>
+                </li>
+              ))}
+            </ul>
+          </ThreadNode>
 
-        <section className="flex min-w-0 flex-col">
-          <p className="text-sm text-slate-500">{plan.directive}</p>
-          <h1 className="mt-2 text-3xl font-medium tracking-tight text-slate-900 sm:text-4xl">
-            {current.label}
-          </h1>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={current.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.32, ease }}
-              className="mt-8"
-            >
-              <StepBody id={current.id} plan={plan} />
-            </motion.div>
-          </AnimatePresence>
-          <div className="mt-auto flex items-center justify-between pt-8">
-            <button
-              type="button"
-              onClick={() => onStep(Math.max(0, step - 1))}
-              disabled={step === 0}
-              className="rounded-full border border-slate-200/50 bg-white/40 px-4 py-2 text-sm text-slate-500 backdrop-blur-2xl transition hover:text-slate-900 disabled:opacity-30"
-            >
-              Précédent
-            </button>
-            <button
-              type="button"
-              onClick={() => onStep(Math.min(STEPS.length - 1, step + 1))}
-              disabled={step === STEPS.length - 1}
-              className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
-            >
-              Suivant
-            </button>
-          </div>
-        </section>
+          <ThreadNode index="03" title="Découpage Technique">
+            <ol className="space-y-3">
+              {plan.shotlist.map((shot, index) => (
+                <li key={`${shot.focal}-${index}`} className={glass}>
+                  <p className="text-[11px] tracking-[0.18em] text-slate-400">
+                    Plan {String(index + 1).padStart(2, "0")}
+                  </p>
+                  <p className="mt-2 text-base leading-7 text-slate-900">{shot.action}</p>
+                  <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-500">
+                    <div>
+                      <dt className="text-[11px] text-slate-400">Focale</dt>
+                      <dd>{shot.focal}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-slate-400">Mouvement</dt>
+                      <dd>{shot.movement}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-slate-400">Angle</dt>
+                      <dd>{shot.angle}</dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ol>
+          </ThreadNode>
+
+          <ThreadNode index="04" title="Post-Production">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <GlassCard title="Premiere Pro" text={plan.post_production.premiere || "Montage à préciser."} />
+              <GlassCard
+                title="DaVinci Resolve"
+                text={plan.post_production.resolve || "Étalonnage nodal à préciser."}
+              />
+            </div>
+          </ThreadNode>
+        </motion.ol>
       </div>
-    </motion.div>
+    </motion.section>
   );
 }
 
-function StepBody({ id, plan }: { id: StepId; plan: DirectivePlan }) {
-  if (id === "vision") {
-    return (
-      <div className="space-y-3">
-        <GlassCard title="Pitch" text={plan.atmosphere.pitch} />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <GlassCard title="Ambiance" text={plan.atmosphere.ambiance || "À préciser sur le plateau."} />
-          <GlassCard title="Sound design" text={plan.atmosphere.sound || "À préciser au montage."} />
-        </div>
-      </div>
-    );
-  }
-
-  if (id === "arsenal") {
-    return (
-      <ul className="space-y-3">
-        {plan.gear_setup.map((item) => (
-          <li key={item.name} className={glass}>
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="text-base text-slate-900">{item.name}</p>
-              <p className="text-[11px] tracking-[0.16em] text-indigo-600">Validé</p>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{item.role}</p>
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  if (id === "plateau") {
-    return (
-      <ol className="space-y-3">
-        {plan.shotlist.map((shot, index) => (
-          <li key={`${shot.focal}-${index}`} className={glass}>
-            <p className="text-[11px] tracking-[0.18em] text-slate-400">
-              Plan {String(index + 1).padStart(2, "0")}
-            </p>
-            <p className="mt-2 text-base leading-7 text-slate-900">{shot.action}</p>
-            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-500">
-              <div>
-                <dt className="text-[11px] text-slate-400">Focale</dt>
-                <dd>{shot.focal}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] text-slate-400">Mouvement</dt>
-                <dd>{shot.movement}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] text-slate-400">Angle</dt>
-                <dd>{shot.angle}</dd>
-              </div>
-            </dl>
-          </li>
-        ))}
-      </ol>
-    );
-  }
-
+function ThreadNode({
+  index,
+  title,
+  children,
+}: {
+  index: string;
+  title: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <GlassCard title="Premiere Pro" text={plan.post_production.premiere || "Montage à préciser."} />
-      <GlassCard title="DaVinci Resolve" text={plan.post_production.resolve || "Étalonnage nodal à préciser."} />
-    </div>
+    <motion.li variants={threadNode} className="relative pl-12">
+      <span
+        aria-hidden
+        className="absolute left-3 top-1.5 z-10 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-white shadow-[0_0_0_5px_#f8fafc,0_0_16px_rgba(103,232,249,0.95)] ring-1 ring-cyan-200"
+      />
+      <p className="text-[11px] tracking-[0.2em] text-slate-400">{index}</p>
+      <h2 className="mt-1 text-2xl font-medium tracking-tight text-slate-900">{title}</h2>
+      <div className="mt-4">{children}</div>
+    </motion.li>
   );
 }
 
