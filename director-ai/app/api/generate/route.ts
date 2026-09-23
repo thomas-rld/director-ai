@@ -67,7 +67,8 @@ export async function POST(request: Request) {
         ],
       }),
     });
-  } catch {
+  } catch (error) {
+    console.error("OpenAI error", error);
     return NextResponse.json(
       { error: "La connexion à OpenAI a échoué. Réessayez." },
       { status: 502 },
@@ -75,8 +76,25 @@ export async function POST(request: Request) {
   }
 
   if (!upstream.ok) {
-    console.error("OpenAI error", upstream.status);
-    return NextResponse.json({ error: "La génération a échoué. Réessayez." }, { status: 502 });
+    let detail = "La génération a échoué. Réessayez.";
+    try {
+      const body: unknown = await upstream.json();
+      const message =
+        body &&
+        typeof body === "object" &&
+        "error" in body &&
+        body.error &&
+        typeof body.error === "object" &&
+        "message" in body.error &&
+        typeof body.error.message === "string"
+          ? body.error.message
+          : "";
+      if (message.trim()) detail = message.replace(/sk-[A-Za-z0-9_-]+/g, "sk-…");
+      console.error("OpenAI error", upstream.status, detail);
+    } catch (error) {
+      console.error("OpenAI error", upstream.status, error);
+    }
+    return NextResponse.json({ error: detail }, { status: 502 });
   }
 
   const data: unknown = await upstream.json();

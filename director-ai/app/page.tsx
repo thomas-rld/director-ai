@@ -31,7 +31,11 @@ export default function HomePage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextIdea = idea.trim();
-    if (nextIdea.length < 2 || appState === "loading") return;
+    if (appState === "loading") return;
+    if (nextIdea.length < 2) {
+      console.error("Director.AI: le prompt doit contenir au moins 2 caractères.");
+      return;
+    }
 
     window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
     setAppState("loading");
@@ -49,7 +53,8 @@ export default function HomePage() {
       let data: unknown;
       try {
         data = await response.json();
-      } catch {
+      } catch (error) {
+        console.error("Director.AI: réponse illisible", error);
         setError("Réponse illisible.");
         setAppState("error");
         return;
@@ -60,6 +65,7 @@ export default function HomePage() {
           data && typeof data === "object" && "error" in data && typeof data.error === "string"
             ? data.error
             : "La génération a échoué.";
+        console.error("Director.AI /api/generate", response.status, message);
         setError(message);
         setAppState("error");
         return;
@@ -72,7 +78,8 @@ export default function HomePage() {
       setPlan(normalizePlan(raw, nextIdea));
       setGeneration((current) => current + 1);
       setAppState("success");
-    } catch {
+    } catch (error) {
+      console.error("Director.AI /api/generate", error);
       setError("Le service ne répond pas. Réessayez.");
       setAppState("error");
     }
@@ -356,7 +363,8 @@ function GlassField({
   onFocusChange: (focused: boolean) => void;
 }) {
   return (
-    <motion.form layout transition={glide} onSubmit={onSubmit} className="w-full min-w-0">
+    <motion.div layout transition={glide} className="w-full min-w-0">
+      <form onSubmit={onSubmit} className="w-full min-w-0">
       <label htmlFor="vision" className="sr-only">
         Vision de la scène
       </label>
@@ -367,6 +375,12 @@ function GlassField({
           onChange={(event) => onIdea(event.target.value)}
           onFocus={() => onFocusChange(true)}
           onBlur={() => onFocusChange(false)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.nativeEvent.isComposing || busy) return;
+            event.preventDefault();
+            if (idea.trim().length < 2) return;
+            event.currentTarget.form?.requestSubmit();
+          }}
           placeholder="Test de l'interface..."
           maxLength={500}
           autoComplete="off"
@@ -386,7 +400,8 @@ function GlassField({
           {error}
         </p>
       ) : null}
-    </motion.form>
+      </form>
+    </motion.div>
   );
 }
 
