@@ -5,9 +5,9 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { DirectivePlan } from "@/lib/plan";
 
 const STEPS = [
-  { id: "vision", label: "Vision & Mood" },
-  { id: "arsenal", label: "Arsenal Matériel" },
-  { id: "plateau", label: "Découpage" },
+  { id: "vision", label: "Vision" },
+  { id: "arsenal", label: "Arsenal" },
+  { id: "plateau", label: "Plateau" },
   { id: "post", label: "Post-Prod" },
 ] as const;
 
@@ -16,13 +16,41 @@ type Phase = "home" | "loading" | "result";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
-const RINGS = [
-  { rx: 68, ry: 12, tilt: 8, duration: 22, tone: "rgba(255,255,255,0.55)" },
-  { rx: 18, ry: 74, tilt: 40, duration: 28, tone: "rgba(196,181,253,0.7)" },
-  { rx: 78, ry: 48, tilt: -24, duration: 16, tone: "rgba(147,197,253,0.65)" },
+type Neuron = { x: number; y: number; dx: number; dy: number };
+
+const NEURONS: Neuron[] = [
+  { x: 34, y: 30, dx: 0.9, dy: 0.5 },
+  { x: 24, y: 46, dx: -0.7, dy: 0.6 },
+  { x: 23, y: 62, dx: 0.6, dy: -0.5 },
+  { x: 32, y: 76, dx: 0.5, dy: 0.7 },
+  { x: 44, y: 22, dx: -0.4, dy: 0.6 },
+  { x: 42, y: 40, dx: 0.7, dy: -0.4 },
+  { x: 40, y: 56, dx: -0.5, dy: 0.6 },
+  { x: 46, y: 72, dx: 0.4, dy: 0.5 },
+  { x: 50, y: 32, dx: 0.2, dy: 0.7 },
+  { x: 50, y: 50, dx: -0.3, dy: -0.5 },
+  { x: 50, y: 68, dx: 0.3, dy: 0.4 },
+  { x: 56, y: 22, dx: 0.4, dy: -0.5 },
+  { x: 58, y: 40, dx: -0.6, dy: 0.5 },
+  { x: 60, y: 56, dx: 0.5, dy: -0.6 },
+  { x: 54, y: 72, dx: -0.4, dy: 0.5 },
+  { x: 66, y: 30, dx: -0.8, dy: 0.4 },
+  { x: 76, y: 46, dx: 0.7, dy: -0.5 },
+  { x: 77, y: 62, dx: -0.6, dy: 0.6 },
+  { x: 68, y: 76, dx: 0.5, dy: -0.4 },
+  { x: 44, y: 86, dx: 0.3, dy: 0.4 },
+  { x: 56, y: 86, dx: -0.3, dy: 0.5 },
+  { x: 50, y: 94, dx: 0.2, dy: -0.3 },
 ];
 
-const ORBITS = [0, 60, 120, 180, 240, 300];
+const SYNAPSES: [number, number][] = [
+  [0, 4], [4, 5], [0, 1], [1, 2], [2, 3], [3, 7], [7, 19],
+  [0, 5], [1, 6], [2, 6], [5, 6], [6, 7], [5, 8], [6, 9], [7, 10],
+  [8, 9], [9, 10], [8, 12], [9, 13], [10, 14], [10, 19], [10, 20],
+  [15, 11], [11, 12], [15, 16], [16, 17], [17, 18], [18, 14], [14, 20],
+  [12, 13], [13, 14], [16, 12], [17, 13], [18, 13],
+  [19, 21], [20, 21], [19, 20], [4, 11], [3, 19], [18, 20],
+];
 
 export default function HomePage() {
   const [idea, setIdea] = useState("");
@@ -78,17 +106,14 @@ export default function HomePage() {
     setStep(0);
   }
 
-  const surge = phase === "loading";
+  const active = phase === "loading";
 
   return (
-    <div className="relative min-h-svh overflow-x-hidden bg-black text-white">
-      <Mesh />
-      {phase === "result" ? (
-        <div
-          className="pointer-events-none fixed top-1/2 left-1/2 h-[560px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(139,92,246,0.22),transparent_68%)] blur-3xl"
-          aria-hidden
-        />
-      ) : null}
+    <div className="relative min-h-svh overflow-x-hidden bg-white text-slate-900">
+      <div
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_center,rgba(224,231,255,0.85),rgba(255,255,255,0)_58%)]"
+        aria-hidden
+      />
 
       {phase === "result" && plan ? (
         <Sequencer
@@ -96,13 +121,19 @@ export default function HomePage() {
           step={step}
           onStep={setStep}
           onReset={reset}
-          core={<CoreSlot surge={false} compact />}
+          core={<NeuralBrain active={false} compact />}
         />
       ) : (
         <main className="relative z-10 mx-auto flex min-h-svh w-full min-w-0 max-w-3xl flex-col items-center justify-center px-6">
-          <p className="mb-8 text-[11px] tracking-[0.42em] text-white/40">DIRECTOR.AI</p>
-          <CoreSlot surge={surge} />
-          <div className="mt-14 w-full min-w-0 max-w-xl">
+          <p className="mb-8 text-[11px] tracking-[0.42em] text-slate-400">DIRECTOR.AI</p>
+          <motion.div
+            layoutId="neural-brain"
+            transition={{ type: "spring", stiffness: 90, damping: 18 }}
+            className="h-[min(72vw,320px)] w-[min(78vw,380px)]"
+          >
+            <NeuralBrain active={active} />
+          </motion.div>
+          <div className="mt-12 w-full min-w-0 max-w-xl">
             <AnimatePresence mode="wait">
               {phase === "home" ? (
                 <GlassField
@@ -119,9 +150,9 @@ export default function HomePage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.45, ease }}
-                  className="text-center text-sm tracking-wide text-white/55"
+                  className="text-center text-sm text-slate-500"
                 >
-                  Analyse spatiale en cours...
+                  Analyse des paramètres de réalisation...
                 </motion.p>
               )}
             </AnimatePresence>
@@ -132,123 +163,62 @@ export default function HomePage() {
   );
 }
 
-function CoreSlot({ surge, compact = false }: { surge: boolean; compact?: boolean }) {
-  return (
-    <motion.div
-      layoutId="neural-core"
-      transition={{ type: "spring", stiffness: 90, damping: 18 }}
-      className={compact ? "h-12 w-12" : "h-[min(70vw,300px)] w-[min(70vw,300px)]"}
-    >
-      <NeuralCore surge={surge} />
-    </motion.div>
-  );
-}
-
-function NeuralCore({ surge }: { surge: boolean }) {
+function NeuralBrain({ active, compact = false }: { active: boolean; compact?: boolean }) {
   const reduce = useReducedMotion();
-  const pace = surge ? 0.38 : 1;
+  const duration = active ? 1.2 : 5.6;
 
   return (
-    <div className="relative h-full w-full" style={{ perspective: 900 }}>
-      <motion.div
-        className={`absolute top-1/2 left-1/2 h-[24%] w-[24%] rounded-full ${
-          surge
-            ? "shadow-[0_0_70px_22px_rgba(196,181,253,0.72)]"
-            : "shadow-[0_0_48px_14px_rgba(167,139,250,0.45)]"
-        }`}
-        style={{
-          x: "-50%",
-          y: "-50%",
-          background:
-            "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(196,181,253,0.55) 38%, rgba(99,102,241,0.05) 70%, transparent 76%)",
-        }}
-        animate={
-          reduce
-            ? { scale: 1, opacity: 1 }
-            : {
-                scale: surge ? [1, 1.2, 1] : [1, 1.07, 1],
-                opacity: surge ? [0.82, 1, 0.82] : [0.78, 1, 0.78],
+    <div className="relative h-full w-full">
+      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
+        {SYNAPSES.map(([fromIndex, toIndex]) => {
+          const from = NEURONS[fromIndex];
+          const to = NEURONS[toIndex];
+          if (!from || !to) return null;
+          return (
+            <motion.line
+              key={`${fromIndex}-${toIndex}`}
+              stroke={active ? "#6366f1" : "#c5d0de"}
+              strokeWidth={compact ? 1.15 : 0.38}
+              strokeLinecap="round"
+              animate={
+                reduce
+                  ? { x1: from.x, y1: from.y, x2: to.x, y2: to.y, opacity: 0.55 }
+                  : {
+                      x1: [from.x, from.x + from.dx, from.x - from.dx * 0.45, from.x],
+                      y1: [from.y, from.y + from.dy, from.y - from.dy * 0.4, from.y],
+                      x2: [to.x, to.x + to.dx, to.x - to.dx * 0.45, to.x],
+                      y2: [to.y, to.y + to.dy, to.y - to.dy * 0.4, to.y],
+                      opacity: active ? [0.45, 1, 0.45] : [0.28, 0.62, 0.28],
+                    }
               }
-        }
-        transition={{
-          duration: surge ? 1.05 : 3.8,
-          repeat: reduce ? 0 : Infinity,
-          ease: "easeInOut",
-        }}
-      />
-
-      {RINGS.map((ring) => (
-        <motion.div
-          key={ring.duration}
-          className="absolute top-[11%] left-[11%] h-[78%] w-[78%] rounded-full border"
-          style={{
-            borderColor: ring.tone,
-            boxShadow: `0 0 16px ${ring.tone}`,
-            rotateZ: ring.tilt,
-            transformStyle: "preserve-3d",
-          }}
+              transition={{ duration, repeat: reduce ? 0 : Infinity, ease: "easeInOut" }}
+            />
+          );
+        })}
+      </svg>
+      {NEURONS.map((node) => (
+        <motion.span
+          key={`${node.x}-${node.y}`}
+          className={`absolute rounded-full ${compact ? "h-1 w-1" : "h-1.5 w-1.5"} ${
+            active ? "bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.65)]" : "bg-slate-400"
+          }`}
+          style={{ x: "-50%", y: "-50%" }}
           animate={
             reduce
-              ? undefined
-              : { rotateX: [ring.rx, ring.rx + 360], rotateY: [ring.ry, ring.ry + 360] }
+              ? { left: `${node.x}%`, top: `${node.y}%`, scale: 1 }
+              : {
+                  left: [`${node.x}%`, `${node.x + node.dx}%`, `${node.x - node.dx * 0.45}%`, `${node.x}%`],
+                  top: [`${node.y}%`, `${node.y + node.dy}%`, `${node.y - node.dy * 0.4}%`, `${node.y}%`],
+                  scale: active ? [1, 1.45, 1] : [1, 1.12, 1],
+                }
           }
           transition={{
-            duration: ring.duration * pace,
-            repeat: Infinity,
-            ease: "linear",
+            duration,
+            repeat: reduce ? 0 : Infinity,
+            ease: "easeInOut",
           }}
         />
       ))}
-
-      {ORBITS.map((angle, index) => (
-        <motion.div
-          key={angle}
-          className="absolute top-1/2 left-1/2 h-[68%] w-[68%]"
-          style={{ x: "-50%", y: "-50%" }}
-          animate={reduce ? { rotate: angle } : { rotate: angle + 360 }}
-          transition={{
-            duration: (14 + index * 1.6) * pace,
-            repeat: reduce ? 0 : Infinity,
-            ease: "linear",
-          }}
-        >
-          <motion.span
-            className="absolute top-0 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-white"
-            style={{ boxShadow: "0 0 10px rgba(226,232,255,0.95)" }}
-            animate={reduce ? undefined : { opacity: [0.25, 1, 0.25], scale: [0.7, 1.35, 0.7] }}
-            transition={{ duration: 2.6 + index * 0.25, repeat: Infinity, ease: "easeInOut" }}
-          />
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-function Mesh() {
-  const reduce = useReducedMotion();
-  const drift = (duration: number, x: number, y: number) =>
-    reduce
-      ? undefined
-      : {
-          x: [0, x, 0],
-          y: [0, y, 0],
-          transition: { duration, repeat: Infinity, ease: "easeInOut" as const },
-        };
-
-  return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-      <motion.div
-        className="absolute -top-24 -left-24 h-[460px] w-[460px] rounded-full bg-indigo-500/25 blur-[130px]"
-        animate={drift(20, 70, 46)}
-      />
-      <motion.div
-        className="absolute top-[18%] -right-20 h-[520px] w-[520px] rounded-full bg-violet-600/20 blur-[150px]"
-        animate={drift(26, -80, 60)}
-      />
-      <motion.div
-        className="absolute -bottom-28 left-[28%] h-[420px] w-[420px] rounded-full bg-sky-400/10 blur-[130px]"
-        animate={drift(24, 36, -40)}
-      />
     </div>
   );
 }
@@ -276,7 +246,7 @@ function GlassField({
       <label htmlFor="vision" className="sr-only">
         Vision de la scène
       </label>
-      <div className="flex w-full min-w-0 flex-col gap-2 rounded-[28px] border border-white/10 bg-white/5 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-xl transition duration-500 hover:border-white/20 hover:shadow-[inset_0_0_42px_rgba(167,139,250,0.16),0_0_36px_rgba(99,102,241,0.12)] focus-within:border-white/25 focus-within:shadow-[inset_0_0_42px_rgba(167,139,250,0.18),0_0_36px_rgba(99,102,241,0.14)] sm:flex-row sm:items-center sm:rounded-full">
+      <div className="flex w-full min-w-0 flex-col gap-2 rounded-[28px] border border-slate-200/50 bg-white/40 p-2 shadow-xl shadow-slate-200/50 backdrop-blur-2xl sm:flex-row sm:items-center sm:rounded-full">
         <input
           id="vision"
           value={idea}
@@ -284,18 +254,18 @@ function GlassField({
           placeholder="Décrivez la vision de votre scène..."
           maxLength={500}
           autoComplete="off"
-          className="h-12 w-full min-w-0 flex-1 bg-transparent px-4 text-base text-white outline-none placeholder:text-white/35"
+          className="h-12 w-full min-w-0 flex-1 bg-transparent px-4 text-base text-slate-900 outline-none placeholder:text-slate-400"
         />
         <button
           type="submit"
           disabled={idea.trim().length < 2}
-          className="h-11 w-full shrink-0 rounded-full bg-white px-5 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/30 sm:w-auto"
+          className="h-11 w-full shrink-0 rounded-full bg-slate-900 px-5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
         >
           Entrer
         </button>
       </div>
       {error ? (
-        <p role="alert" className="mt-4 text-center text-sm text-white/55">
+        <p role="alert" className="mt-4 text-center text-sm text-slate-500">
           {error}
         </p>
       ) : null}
@@ -327,44 +297,50 @@ function Sequencer({
     >
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {core}
-          <span className="text-sm tracking-[0.28em] text-white/70">DIRECTOR.AI</span>
+          <motion.div
+            layoutId="neural-brain"
+            transition={{ type: "spring", stiffness: 90, damping: 18 }}
+            className="h-12 w-14"
+          >
+            {core}
+          </motion.div>
+          <span className="text-sm tracking-[0.28em] text-slate-400">DIRECTOR.AI</span>
         </div>
         <button
           type="button"
           onClick={onReset}
-          className="text-sm text-white/45 transition hover:text-white"
+          className="text-sm text-slate-500 transition hover:text-slate-900"
         >
           Nouvelle vision
         </button>
       </header>
 
-      <div className="mt-10 grid flex-1 gap-6 md:grid-cols-[240px_minmax(0,1fr)] md:gap-8">
+      <div className="mt-10 grid flex-1 gap-6 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8">
         <nav aria-label="Séquencier" className="flex gap-2 overflow-x-auto md:flex-col">
           {STEPS.map((item, index) => {
-            const active = index === step;
+            const selected = index === step;
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onStep(index)}
-                aria-current={active ? "step" : undefined}
-                className={`min-w-[11rem] rounded-[22px] border px-4 py-3 text-left backdrop-blur-xl transition md:min-w-0 ${
-                  active
-                    ? "border-white/15 bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]"
-                    : "border-transparent text-white/40 hover:bg-white/5 hover:text-white/70"
+                aria-current={selected ? "step" : undefined}
+                className={`min-w-[9.5rem] rounded-3xl border px-4 py-3 text-left backdrop-blur-2xl transition md:min-w-0 ${
+                  selected
+                    ? "border-slate-200/50 bg-white/70 text-slate-900 shadow-xl shadow-slate-200/50"
+                    : "border-transparent text-slate-400 hover:bg-white/50 hover:text-slate-700"
                 }`}
               >
-                <span className="text-[11px] tracking-[0.18em] text-white/35">0{index + 1}</span>
-                <span className="mt-1 block text-sm">{item.label}</span>
+                <span className="text-[11px] tracking-[0.18em] text-slate-400">0{index + 1}</span>
+                <span className="mt-1 block text-sm font-medium">{item.label}</span>
               </button>
             );
           })}
         </nav>
 
         <section className="flex min-w-0 flex-col">
-          <p className="text-sm text-white/45">{plan.directive}</p>
-          <h1 className="mt-2 text-3xl font-medium tracking-tight text-white sm:text-4xl">
+          <p className="text-sm text-slate-500">{plan.directive}</p>
+          <h1 className="mt-2 text-3xl font-medium tracking-tight text-slate-900 sm:text-4xl">
             {current.label}
           </h1>
           <AnimatePresence mode="wait">
@@ -384,7 +360,7 @@ function Sequencer({
               type="button"
               onClick={() => onStep(Math.max(0, step - 1))}
               disabled={step === 0}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 backdrop-blur-xl transition hover:text-white disabled:opacity-30"
+              className="rounded-full border border-slate-200/50 bg-white/40 px-4 py-2 text-sm text-slate-500 backdrop-blur-2xl transition hover:text-slate-900 disabled:opacity-30"
             >
               Précédent
             </button>
@@ -392,7 +368,7 @@ function Sequencer({
               type="button"
               onClick={() => onStep(Math.min(STEPS.length - 1, step + 1))}
               disabled={step === STEPS.length - 1}
-              className="rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-white/90 disabled:bg-white/15 disabled:text-white/30"
+              className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400"
             >
               Suivant
             </button>
@@ -422,10 +398,10 @@ function StepBody({ id, plan }: { id: StepId; plan: DirectivePlan }) {
         {plan.gear_setup.map((item) => (
           <li key={item.name} className={glass}>
             <div className="flex items-baseline justify-between gap-4">
-              <p className="text-base text-white">{item.name}</p>
-              <p className="text-[11px] tracking-[0.16em] text-violet-200/80">Validé</p>
+              <p className="text-base text-slate-900">{item.name}</p>
+              <p className="text-[11px] tracking-[0.16em] text-indigo-600">Validé</p>
             </div>
-            <p className="mt-2 text-sm leading-6 text-white/55">{item.role}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{item.role}</p>
           </li>
         ))}
       </ul>
@@ -437,21 +413,21 @@ function StepBody({ id, plan }: { id: StepId; plan: DirectivePlan }) {
       <ol className="space-y-3">
         {plan.shotlist.map((shot, index) => (
           <li key={`${shot.focal}-${index}`} className={glass}>
-            <p className="text-[11px] tracking-[0.18em] text-white/35">
+            <p className="text-[11px] tracking-[0.18em] text-slate-400">
               Plan {String(index + 1).padStart(2, "0")}
             </p>
-            <p className="mt-2 text-base leading-7 text-white">{shot.action}</p>
-            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-white/55">
+            <p className="mt-2 text-base leading-7 text-slate-900">{shot.action}</p>
+            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-500">
               <div>
-                <dt className="text-[11px] text-white/35">Focale</dt>
+                <dt className="text-[11px] text-slate-400">Focale</dt>
                 <dd>{shot.focal}</dd>
               </div>
               <div>
-                <dt className="text-[11px] text-white/35">Mouvement</dt>
+                <dt className="text-[11px] text-slate-400">Mouvement</dt>
                 <dd>{shot.movement}</dd>
               </div>
               <div>
-                <dt className="text-[11px] text-white/35">Angle</dt>
+                <dt className="text-[11px] text-slate-400">Angle</dt>
                 <dd>{shot.angle}</dd>
               </div>
             </dl>
@@ -470,13 +446,13 @@ function StepBody({ id, plan }: { id: StepId; plan: DirectivePlan }) {
 }
 
 const glass =
-  "rounded-[28px] border border-white/10 bg-white/5 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl";
+  "rounded-3xl border border-slate-200/50 bg-white/40 px-5 py-5 shadow-xl shadow-slate-200/50 backdrop-blur-2xl";
 
 function GlassCard({ title, text }: { title: string; text: string }) {
   return (
     <article className={glass}>
-      <h2 className="text-[11px] tracking-[0.18em] text-white/35">{title}</h2>
-      <p className="mt-2 text-base leading-7 text-white">{text}</p>
+      <h2 className="text-[11px] tracking-[0.18em] text-slate-400">{title}</h2>
+      <p className="mt-2 text-base leading-7 text-slate-900">{text}</p>
     </article>
   );
 }
