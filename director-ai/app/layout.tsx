@@ -1,29 +1,22 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Director.AI",
-  description: "Unité logique de direction photo. Directive, arsenal, lumière, post-production.",
+  description: "Un parcours guidé pour passer d'une idée de scène au découpage, au matériel et à la post-production.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full bg-black font-mono text-cyan-400">{children}</body>
+    <html lang="fr" className={`${inter.variable} h-full antialiased`}>
+      <body className="min-h-full bg-slate-50 font-sans text-slate-900">{children}</body>
     </html>
   );
 }

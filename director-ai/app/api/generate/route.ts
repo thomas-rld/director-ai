@@ -3,33 +3,25 @@ import { normalizePlan } from "@/lib/plan";
 
 export const runtime = "nodejs";
 
-const SYSTEM_PROMPT = `Tu es l'unité logique 'Director.AI', une intelligence artificielle d'élite spécialisée dans la direction de la photographie et le mentorat créatif.
-CONTRAINTES MATÉRIELLES (L'Arsenal) :
-Tu dois concevoir tes plans EXCLUSIVEMENT avec le matériel suivant :
-* Boîtier : Sony A7V.
-* Optiques : Laowa 10mm, 16-35mm, 70-200mm.
-* Éclairage : Panneaux LED RGB.
-* Machinerie : Trépied, cage SmallRig.
-Interdiction formelle de suggérer du matériel hors de cette liste. Optimise chaque scène pour ce setup.
-
-WORKFLOW POST-PRODUCTION :
-Tes recommandations de montage et d'étalonnage doivent cibler DaVinci Resolve (color grading nodal) et Premiere Pro.
-FORMAT DE RÉPONSE (JSON structuré) :
-Renvoie un JSON valide avec les clés suivantes :
-* \`directive\`: Titre du projet.
-* \`atmosphere\`: Moodboard visuel et sonore.
-* \`shotlist\`: Un tableau d'objets (focale, mouvement, angle).
-* \`lighting\`: Configuration stricte des panneaux RGB.
-* \`post_prod\`: Directives techniques pour Resolve/Premiere.
-
-Ton ton est froid, technique, incisif et orienté progression de l'utilisateur.`;
+const SYSTEM_PROMPT = `Tu es Director.AI, un mentor d'élite en réalisation vidéo.
+CONTRAINTE MATÉRIELLE ABSOLUE : Tu dois concevoir tes plans EXCLUSIVEMENT avec : Sony A7V, Laowa 10mm / 16-35mm / 70-200mm, Panneaux LED RGB, Trépied, SmallRig. AUCUN autre matériel.
+LOGICIELS : Premiere Pro, DaVinci Resolve.
+Renvoie un JSON valide, sans markdown, avec exactement ces clés :
+{
+  "directive": "titre court du projet",
+  "atmosphere": { "pitch": "intention en deux phrases", "ambiance": "lumière et couleur", "sound": "sound design" },
+  "gear_setup": [{ "name": "nom exact du kit", "role": "pourquoi il est là" }],
+  "shotlist": [{ "focal": "16-35mm", "movement": "plan fixe", "angle": "hauteur d'œil", "action": "ce que l'on voit" }],
+  "post_production": { "premiere": "montage", "resolve": "étalonnage nodal" }
+}
+Cinq à sept plans. Focales limitées à Laowa 10mm, 16-35mm ou 70-200mm. Ton clair, précis, pédagogique.`;
 
 export async function POST(request: Request) {
   let payload: unknown;
   try {
     payload = await request.json();
   } catch {
-    return NextResponse.json({ error: "PAQUET ILLISIBLE." }, { status: 400 });
+    return NextResponse.json({ error: "La requête est illisible." }, { status: 400 });
   }
 
   const idea =
@@ -42,7 +34,7 @@ export async function POST(request: Request) {
 
   if (idea.length < 2 || idea.length > 500) {
     return NextResponse.json(
-      { error: "DIRECTIVE INVALIDE. 2 À 500 CARACTÈRES." },
+      { error: "Décrivez la scène en quelques mots, entre 2 et 500 caractères." },
       { status: 400 },
     );
   }
@@ -50,7 +42,7 @@ export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: "CLÉ OPENAI ABSENTE. CHARGEZ OPENAI_API_KEY DANS .ENV.LOCAL." },
+      { error: "Ajoutez OPENAI_API_KEY dans .env.local pour continuer." },
       { status: 500 },
     );
   }
@@ -71,17 +63,20 @@ export async function POST(request: Request) {
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Directive opérateur : ${idea}` },
+          { role: "user", content: `Idée de scène : ${idea}` },
         ],
       }),
     });
   } catch {
-    return NextResponse.json({ error: "UPLINK ROMPU. RÉÉMETTEZ." }, { status: 502 });
+    return NextResponse.json(
+      { error: "La connexion à OpenAI a échoué. Réessayez." },
+      { status: 502 },
+    );
   }
 
   if (!upstream.ok) {
     console.error("OpenAI error", upstream.status);
-    return NextResponse.json({ error: "CŒUR MUET. RÉÉMETTEZ." }, { status: 502 });
+    return NextResponse.json({ error: "La génération a échoué. Réessayez." }, { status: 502 });
   }
 
   const data: unknown = await upstream.json();
@@ -94,14 +89,14 @@ export async function POST(request: Request) {
       : undefined;
 
   if (typeof content !== "string") {
-    return NextResponse.json({ error: "PAQUET INCOMPLET." }, { status: 502 });
+    return NextResponse.json({ error: "Réponse incomplète. Relancez." }, { status: 502 });
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch {
-    return NextResponse.json({ error: "JSON CORROMPU." }, { status: 502 });
+    return NextResponse.json({ error: "Le plan reçu n'était pas un JSON valide." }, { status: 502 });
   }
 
   return NextResponse.json({ plan: normalizePlan(parsed, idea) });

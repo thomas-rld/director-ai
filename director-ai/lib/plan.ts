@@ -1,23 +1,45 @@
-export const FOCALS = ["Laowa 10mm", "16-35mm", "70-200mm"] as const;
+export const KIT = [
+  "Sony A7V",
+  "Laowa 10mm",
+  "16-35mm",
+  "70-200mm",
+  "Panneaux LED RGB",
+  "Trépied",
+  "SmallRig",
+] as const;
 
-export type Focal = (typeof FOCALS)[number];
+export type GearName = (typeof KIT)[number];
+export type Focal = "Laowa 10mm" | "16-35mm" | "70-200mm";
+
+export type GearItem = {
+  name: GearName;
+  role: string;
+};
 
 export type Shot = {
   focal: Focal;
   movement: string;
   angle: string;
+  action: string;
 };
 
 export type DirectivePlan = {
   directive: string;
-  atmosphere: string;
+  atmosphere: {
+    pitch: string;
+    ambiance: string;
+    sound: string;
+  };
+  gear_setup: GearItem[];
   shotlist: Shot[];
-  lighting: string;
-  post_prod: string;
+  post_production: {
+    premiere: string;
+    resolve: string;
+  };
 };
 
 const FORBIDDEN =
-  /dji|ronin|gimbal|steadicam|steadycam|drone|grue|slider|crane|bmpcc|red\s|arri|zeiss|sigma/gi;
+  /dji|ronin|gimbal|steadicam|steadycam|drone|grue|slider|crane|bmpcc|\barri\b|zeiss|sigma/gi;
 
 function clip(value: unknown, max: number, fallback = ""): string {
   if (typeof value !== "string" && typeof value !== "number") return fallback;
@@ -27,7 +49,7 @@ function clip(value: unknown, max: number, fallback = ""): string {
 }
 
 function scrub(value: string): string {
-  return value.replace(FORBIDDEN, "KIT AUTORISÉ").replace(/\s{2,}/g, " ").trim();
+  return value.replace(FORBIDDEN, "kit autorisé").replace(/\s{2,}/g, " ").trim();
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -35,27 +57,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function flatten(value: unknown): string {
-  if (typeof value === "string" || typeof value === "number") return clip(value, 700);
-  if (Array.isArray(value)) {
-    return value.map((item) => flatten(item)).filter(Boolean).join("  /  ");
-  }
-  const record = asRecord(value);
-  if (!record) return "";
-  return Object.entries(record)
-    .map(([key, entry]) => {
-      const text = flatten(entry);
-      return text ? `${key}: ${text}` : "";
-    })
-    .filter(Boolean)
-    .join("  /  ");
-}
-
-export function canonicalFocal(name: string): Focal {
+export function canonicalGear(name: string): GearName | null {
   const normalized = name
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+
   if (normalized.includes("laowa") || normalized.includes("10mm") || normalized.includes("10 mm")) {
     return "Laowa 10mm";
   }
@@ -65,94 +72,107 @@ export function canonicalFocal(name: string): Focal {
   if (normalized.includes("16-35") || normalized.includes("16 35") || normalized.includes("1635")) {
     return "16-35mm";
   }
+  if (normalized.includes("led") || normalized.includes("rgb") || normalized.includes("panneau")) {
+    return "Panneaux LED RGB";
+  }
+  if (normalized.includes("trepied") || normalized.includes("tripod")) return "Trépied";
+  if (normalized.includes("smallrig") || normalized.includes("small rig")) return "SmallRig";
+  if (normalized.includes("a7v") || normalized.includes("a7 v") || normalized.includes("sony")) {
+    return "Sony A7V";
+  }
+  return null;
+}
+
+function canonicalFocal(name: string): Focal {
+  const gear = canonicalGear(name);
+  if (gear === "Laowa 10mm" || gear === "16-35mm" || gear === "70-200mm") return gear;
   return "16-35mm";
 }
 
-function readShot(entry: unknown): Shot | null {
-  const record = asRecord(entry);
-  if (!record) return null;
-  const action = clip(record.action ?? record.description, 40);
-  const movement = scrub(
-    clip(record.movement ?? record.mouvement ?? record.move, 72, action || "PLAN FIXE"),
-  );
-  const angle = scrub(clip(record.angle ?? record.cadrage ?? record.hauteur, 72, "HAUTEUR D'OEIL"));
-  const focalRaw = clip(record.focal ?? record.focale ?? record.lens ?? record.optique, 80);
-  if (!movement && !focalRaw) return null;
+function readAtmosphere(value: unknown, idea: string): DirectivePlan["atmosphere"] {
+  if (typeof value === "string") {
+    return { pitch: scrub(clip(value, 500, idea)), ambiance: "", sound: "" };
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return { pitch: scrub(clip(idea, 240)), ambiance: "", sound: "" };
+  }
   return {
-    focal: canonicalFocal(focalRaw),
-    movement: movement || "PLAN FIXE",
-    angle,
+    pitch: scrub(clip(record.pitch ?? record.directive ?? record.resume, 500)),
+    ambiance: scrub(clip(record.ambiance ?? record.visual ?? record.visuel ?? record.mood, 400)),
+    sound: scrub(clip(record.sound ?? record.son ?? record.soundDesign ?? record.sonore, 400)),
+  };
+}
+
+function readPost(value: unknown): DirectivePlan["post_production"] {
+  if (typeof value === "string") {
+    const text = scrub(clip(value, 800));
+    return { premiere: text, resolve: "" };
+  }
+  const record = asRecord(value);
+  if (!record) return { premiere: "", resolve: "" };
+  return {
+    premiere: scrub(clip(record.premiere ?? record.montage, 500)),
+    resolve: scrub(clip(record.resolve ?? record.davinci ?? record.etalonnage, 500)),
   };
 }
 
 export function normalizePlan(raw: unknown, idea: string): DirectivePlan {
   const source = asRecord(raw) ?? {};
-  const shotlist = (Array.isArray(source.shotlist) ? source.shotlist : [])
-    .map(readShot)
-    .filter((shot): shot is Shot => shot !== null)
-    .slice(0, 8);
+  const seen = new Set<GearName>();
+  const gear = (Array.isArray(source.gear_setup) ? source.gear_setup : []).flatMap((entry) => {
+    if (typeof entry === "string") {
+      const name = canonicalGear(entry);
+      if (!name || seen.has(name)) return [];
+      seen.add(name);
+      return [{ name, role: "Retenu pour la scène." }];
+    }
+    const record = asRecord(entry);
+    if (!record) return [];
+    const name = canonicalGear(clip(record.name ?? record.item ?? record.gear, 80));
+    if (!name || seen.has(name)) return [];
+    seen.add(name);
+    return [{ name, role: scrub(clip(record.role ?? record.usage ?? record.why, 180, "Retenu pour la scène.")) }];
+  });
 
-  const shots =
-    shotlist.length > 0
-      ? shotlist
-      : [{ focal: "16-35mm" as const, movement: "PLAN FIXE", angle: "HAUTEUR D'OEIL" }];
+  if (!seen.has("Sony A7V")) {
+    gear.unshift({ name: "Sony A7V", role: "Boîtier unique du tournage." });
+  }
 
-  const atmosphere = scrub(
-    flatten(source.atmosphere) || "VISUEL: NON CALÉ  /  SONORE: NON CALÉ",
-  );
-  const lighting = scrub(
-    flatten(source.lighting) || "PANNEAU LED RGB — CYAN 20% / AMBRE 10% — FACE ET CONTOUR",
-  );
-  const post = asRecord(source.post_prod);
-  const postProd = scrub(
-    post
-      ? [
-          flatten(post.resolve ?? post.davinci) &&
-            `RESOLVE // ${flatten(post.resolve ?? post.davinci)}`,
-          flatten(post.premiere ?? post.montage) &&
-            `PREMIERE // ${flatten(post.premiere ?? post.montage)}`,
-        ]
-          .filter(Boolean)
-          .join("  /  ") || flatten(post)
-      : flatten(source.post_prod),
-  );
+  const shotlist = (Array.isArray(source.shotlist) ? source.shotlist : []).flatMap((entry) => {
+    const record = asRecord(entry);
+    if (!record) return [];
+    const action = scrub(clip(record.action ?? record.description ?? record.plan, 280));
+    const movement = scrub(clip(record.movement ?? record.mouvement, 80, "Plan fixe"));
+    if (!action && !movement) return [];
+    return [
+      {
+        focal: canonicalFocal(clip(record.focal ?? record.focale ?? record.lens, 40)),
+        movement,
+        angle: scrub(clip(record.angle ?? record.cadrage, 80, "Hauteur d'œil")),
+        action: action || "Plan tenu le temps de lire la scène.",
+      },
+    ];
+  });
+
+  const atmosphere = readAtmosphere(source.atmosphere, idea);
+  if (!atmosphere.pitch) atmosphere.pitch = scrub(clip(source.directive ?? idea, 240));
 
   return {
-    directive: scrub(clip(source.directive, 90, clip(idea, 90, "SANS TITRE"))),
+    directive: scrub(clip(source.directive, 90, clip(idea, 90, "Sans titre"))),
     atmosphere,
-    shotlist: shots,
-    lighting,
-    post_prod: postProd || "RESOLVE // GRADING NODAL  /  PREMIERE // MONTAGE",
+    gear_setup: gear.slice(0, KIT.length),
+    shotlist:
+      shotlist.length > 0
+        ? shotlist.slice(0, 8)
+        : [
+            {
+              focal: "16-35mm",
+              movement: "Plan fixe",
+              angle: "Hauteur d'œil",
+              action: scrub(clip(idea, 180, "Ouverture sur l'idée.")),
+            },
+          ],
+    post_production: readPost(source.post_production),
   };
-}
-
-export function formatStream(plan: DirectivePlan): string {
-  const shots = plan.shotlist
-    .map(
-      (shot, index) =>
-        `  ${String(index + 1).padStart(2, "0")}   FOC ${shot.focal}   /   MOV ${shot.movement}   /   ANG ${shot.angle}`,
-    )
-    .join("\n");
-
-  return [
-    "PACKET // CLEAR",
-    "DIRECTIVE",
-    `  ${plan.directive}`,
-    "",
-    "ATMOSPHERE",
-    `  ${plan.atmosphere}`,
-    "",
-    "SHOTLIST",
-    shots,
-    "",
-    "LIGHTING",
-    `  ${plan.lighting}`,
-    "",
-    "POST_PROD",
-    `  ${plan.post_prod}`,
-  ].join("\n");
-}
-
-export function usedOptics(plan: DirectivePlan): Set<Focal> {
-  return new Set(plan.shotlist.map((shot) => shot.focal));
 }

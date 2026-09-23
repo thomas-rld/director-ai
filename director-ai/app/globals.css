@@ -2,37 +2,20 @@
 @config "../tailwind.config.ts";
 
 @theme inline {
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-sans: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 html,
 body {
-  background: #000;
-  color: #22d3ee;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 body {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 ::selection {
-  background: rgba(34, 211, 238, 0.35);
-  color: #fff;
-}
-
-.hud-grid {
-  background-image:
-    linear-gradient(rgba(34, 211, 238, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 211, 238, 0.07) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 68%);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-scan,
-  .animate-telemetry,
-  .animate-flicker {
-    animation: none;
-  }
+  background: #e0e7ff;
+  color: #0f172a;
 }
