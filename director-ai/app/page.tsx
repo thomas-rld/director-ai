@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { Camera, Clapperboard, Eye, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { normalizePlan, type DirectivePlan } from "@/lib/plan";
@@ -26,7 +26,16 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const [generation, setGeneration] = useState(0);
   const [focused, setFocused] = useState(false);
+  const [pulse, setPulse] = useState(false);
+  const pulseTimer = useRef<number | null>(null);
   const reduce = useReducedMotion();
+
+  useEffect(
+    () => () => {
+      if (pulseTimer.current) window.clearTimeout(pulseTimer.current);
+    },
+    [],
+  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,6 +46,9 @@ export default function HomePage() {
       return;
     }
 
+    setPulse(true);
+    if (pulseTimer.current) window.clearTimeout(pulseTimer.current);
+    pulseTimer.current = window.setTimeout(() => setPulse(false), 1400);
     document.getElementById("reponse")?.scrollIntoView({
       behavior: reduce ? "auto" : "smooth",
       block: "start",
@@ -88,7 +100,7 @@ export default function HomePage() {
     }
   }
 
-  const mode: OculusMode = appState === "loading" ? "processing" : focused ? "focus" : "idle";
+  const mode: OculusMode = appState === "loading" || pulse ? "processing" : focused ? "focus" : "idle";
   const settled = appState === "success";
 
   useEffect(() => {
@@ -177,7 +189,7 @@ function OpticalOculus({ mode, compact = false }: { mode: OculusMode; compact?: 
 
   const spin = (reverse: boolean) => (reduce ? { rotate: 0 } : { rotate: reverse ? -360 : 360 });
   const linear = (seconds: number) => ({
-    duration: processing ? Math.max(4, seconds * 0.22) : seconds,
+    duration: processing ? Math.max(10, seconds * 0.42) : seconds,
     repeat: reduce ? 0 : Infinity,
     ease: "linear" as const,
   });
@@ -185,85 +197,94 @@ function OpticalOculus({ mode, compact = false }: { mode: OculusMode; compact?: 
   return (
     <motion.div
       className="relative h-full w-full"
-      animate={{ scale: focus ? 0.92 : 1 }}
-      transition={{ type: "spring", stiffness: 150, damping: 20 }}
+      animate={{ scale: processing ? [1, 1.045, 0.985, 1.02, 1] : focus ? 0.92 : 1 }}
+      transition={
+        processing && !reduce
+          ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+          : { type: "spring", stiffness: 150, damping: 20 }
+      }
       aria-hidden
     >
       <motion.div
-        className={`pointer-events-none absolute inset-[30%] rounded-full ${compact ? "blur-sm" : "blur-xl"}`}
+        className={`pointer-events-none absolute rounded-full ${compact ? "inset-[22%] blur-md" : "inset-[8%] blur-3xl"}`}
         style={{
           background:
-            "radial-gradient(circle at 36% 38%, rgba(165,243,252,0.85), transparent 58%), radial-gradient(circle at 68% 64%, rgba(251,207,232,0.7), transparent 54%)",
+            "radial-gradient(circle at 50% 50%, rgba(34,211,238,0.55), rgba(232,121,249,0.28) 42%, transparent 70%)",
         }}
         animate={{
-          opacity: processing ? 1 : focus ? 0.62 : 0.34,
-          scale: reduce ? 1 : processing ? [1, 1.28, 1] : [0.94, 1.06, 0.94],
+          opacity: processing ? [0.75, 1, 0.82, 1] : focus ? 0.55 : 0.42,
+          scale: reduce ? 1 : processing ? [0.92, 1.22, 0.96, 1.12, 0.92] : [0.96, 1.06, 0.96],
         }}
         transition={{
-          duration: processing ? 1.5 : 4.8,
+          duration: processing ? 1.5 : 5.2,
           repeat: reduce ? 0 : Infinity,
           ease: "easeInOut",
         }}
       />
 
-      <GlassRing inset="2%" duration={56} reverse={false} mark="cyan" reduce={reduce} linear={linear} spin={spin} />
+      <GlassRing inset="1%" duration={72} reverse={false} mark="cyan" reduce={reduce} linear={linear} spin={spin} />
 
       <motion.div
         className="absolute inset-0"
-        animate={{ scale: processing ? 0.68 : focus ? 0.9 : 1 }}
-        transition={{ type: "spring", stiffness: 130, damping: 18 }}
+        animate={{ scale: processing ? [1, 0.9, 0.96, 0.88, 1] : focus ? 0.92 : 1 }}
+        transition={
+          processing && !reduce
+            ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+            : { type: "spring", stiffness: 130, damping: 18 }
+        }
       >
-        <GlassRing inset="14%" duration={42} reverse mark="magenta" reduce={reduce} linear={linear} spin={spin} />
+        <GlassRing inset="16%" duration={48} reverse mark="magenta" reduce={reduce} linear={linear} spin={spin} />
         {!compact ? (
-          <GlassRing inset="28%" duration={30} reverse={false} mark="slate" reduce={reduce} linear={linear} spin={spin} />
+          <GlassRing inset="30%" duration={34} reverse={false} mark="cyan" reduce={reduce} linear={linear} spin={spin} />
         ) : null}
         <BladeField
-          duration={processing ? 8 : 48}
+          duration={processing ? 18 : 52}
           reverse
           reduce={reduce}
           compact={compact}
           radius={compact ? 74 : 78}
           count={6}
           sweep={34}
-          stroke={compact ? 3.2 : 1.15}
+          stroke={compact ? 3.2 : 1.25}
+          neon={processing}
         />
         {!compact ? (
           <BladeField
-            duration={processing ? 6 : 36}
+            duration={processing ? 14 : 38}
             reverse={false}
             reduce={reduce}
             compact={false}
             radius={58}
             count={3}
             sweep={78}
-            stroke={0.9}
+            stroke={1}
+            neon={processing}
           />
         ) : null}
       </motion.div>
 
       <motion.div
-        className="absolute inset-[38%]"
-        animate={{ scale: processing ? 0.58 : focus ? 0.84 : 1 }}
-        transition={{ type: "spring", stiffness: 170, damping: 18 }}
-      >
-        <motion.div
-          className="h-full w-full rounded-full border border-slate-200 bg-white/40 backdrop-blur-md"
-          style={{
-            boxShadow: processing
-              ? "inset 0 0 22px rgba(103,232,249,0.85), inset 0 0 36px rgba(244,114,182,0.55)"
-              : "inset 0 0 16px rgba(165,243,252,0.7), inset 0 0 28px rgba(251,207,232,0.45)",
-          }}
-          animate={{ scale: reduce ? 1 : processing ? [0.92, 1.12, 0.92] : [0.97, 1.06, 0.97] }}
-          transition={{
-            duration: processing ? 1.25 : 4.4,
-            repeat: reduce ? 0 : Infinity,
-            ease: "easeInOut",
-          }}
-        />
-      </motion.div>
+        className="pointer-events-none absolute inset-[40%] rounded-full"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(255,255,255,0.98) 0%, rgba(165,243,252,0.95) 28%, rgba(232,121,249,0.55) 58%, transparent 74%)",
+          boxShadow: processing
+            ? "0 0 28px 10px rgba(34,211,238,0.75), 0 0 64px 22px rgba(217,70,239,0.45), inset 0 0 18px rgba(255,255,255,0.9)"
+            : "0 0 22px 8px rgba(34,211,238,0.45), 0 0 42px 14px rgba(217,70,239,0.22), inset 0 0 12px rgba(255,255,255,0.85)",
+        }}
+        animate={{
+          scale: reduce ? 1 : processing ? [1, 1.22, 0.9, 1.12, 1] : [0.94, 1.08, 0.94],
+          opacity: processing ? [0.9, 1, 0.86, 1] : [0.72, 0.92, 0.72],
+        }}
+        transition={{
+          duration: processing ? 1.5 : 4.6,
+          repeat: reduce ? 0 : Infinity,
+          ease: "easeInOut",
+        }}
+      />
 
       {!compact ? (
-        <div className="pointer-events-none absolute left-[20%] top-[14%] h-[24%] w-[16%] rounded-full bg-white/80 blur-md" />
+        <div className="pointer-events-none absolute left-[22%] top-[16%] h-[18%] w-[12%] rounded-full bg-white/80 blur-md" />
       ) : null}
     </motion.div>
   );
@@ -286,12 +307,18 @@ function GlassRing({
   linear: (seconds: number) => { duration: number; repeat: number; ease: "linear" };
   spin: (reverse: boolean) => { rotate: number };
 }) {
-  const markClass =
+  const glow =
     mark === "cyan"
-      ? "from-cyan-300/80"
+      ? "rgba(34,211,238,0.55)"
       : mark === "magenta"
-        ? "from-fuchsia-300/70"
-        : "from-slate-300/80";
+        ? "rgba(217,70,239,0.42)"
+        : "rgba(148,163,184,0.35)";
+  const tick =
+    mark === "cyan"
+      ? "bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.95)]"
+      : mark === "magenta"
+        ? "bg-fuchsia-400 shadow-[0_0_10px_rgba(217,70,239,0.9)]"
+        : "bg-slate-300";
 
   return (
     <motion.div
@@ -300,17 +327,11 @@ function GlassRing({
       animate={spin(reverse)}
       transition={linear(reduce ? 0 : duration)}
     >
-      <div className="absolute inset-0 rounded-full border border-slate-300/80" />
       <div
-        className="absolute inset-[3%] rounded-full bg-white/40 backdrop-blur-md"
-        style={{
-          WebkitMaskImage: "radial-gradient(circle, transparent 84%, #000 94%)",
-          maskImage: "radial-gradient(circle, transparent 84%, #000 94%)",
-        }}
+        className="absolute inset-0 rounded-full border border-white/80"
+        style={{ boxShadow: `0 0 18px ${glow}, inset 0 0 12px ${glow}` }}
       />
-      <span
-        className={`absolute left-1/2 top-0 h-[14%] w-px -translate-x-1/2 bg-gradient-to-b ${markClass} to-transparent`}
-      />
+      <span className={`absolute left-1/2 top-0 h-[16%] w-[2px] -translate-x-1/2 rounded-full ${tick}`} />
     </motion.div>
   );
 }
@@ -324,6 +345,7 @@ function BladeField({
   count,
   sweep,
   stroke,
+  neon = false,
 }: {
   duration: number;
   reverse: boolean;
@@ -333,6 +355,7 @@ function BladeField({
   count: number;
   sweep: number;
   stroke: number;
+  neon?: boolean;
 }) {
   return (
     <motion.svg
@@ -346,7 +369,7 @@ function BladeField({
           key={index}
           d={arc(100, 100, radius, (360 / count) * index - sweep / 2, sweep)}
           fill="none"
-          stroke={index % 2 === 0 ? "#94a3b8" : "#cbd5e1"}
+          stroke={neon ? (index % 2 === 0 ? "#22d3ee" : "#e879f9") : index % 2 === 0 ? "#94a3b8" : "#cbd5e1"}
           strokeWidth={stroke}
           strokeLinecap="round"
         />
