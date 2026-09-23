@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { Camera, Clapperboard, Eye, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { normalizePlan, type DirectivePlan } from "@/lib/plan";
@@ -37,7 +37,6 @@ export default function HomePage() {
       return;
     }
 
-    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
     setAppState("loading");
     setError("");
     setPlan(null);
@@ -88,6 +87,19 @@ export default function HomePage() {
   const mode: OculusMode = appState === "loading" ? "processing" : focused ? "focus" : "idle";
   const settled = appState === "success";
 
+  useEffect(() => {
+    if (appState !== "loading" && appState !== "success") return;
+    const behavior = reduce ? "auto" : "smooth";
+    const frame = window.requestAnimationFrame(() => {
+      if (appState === "success") {
+        document.getElementById("reponse")?.scrollIntoView({ behavior, block: "start" });
+        return;
+      }
+      window.scrollTo({ top: 0, behavior });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [appState, generation, reduce]);
+
   return (
     <div className="relative min-h-svh overflow-x-hidden bg-slate-50 text-slate-900">
       <div
@@ -98,6 +110,7 @@ export default function HomePage() {
       <main className="relative z-10">
         <LayoutGroup>
           <div
+            id="reponse"
             className={
               settled
                 ? "mx-auto flex w-full max-w-xl flex-col items-center px-6 pb-2 pt-8"
@@ -408,13 +421,13 @@ function GlassField({
 const threadContainer = {
   hidden: {},
   show: {
-    transition: { staggerChildren: 0.18, delayChildren: 0.32 },
+    transition: { staggerChildren: 0.14, delayChildren: 0.18 },
   },
 };
 
 const threadNode = {
-  hidden: { opacity: 0, y: 22 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease } },
+  hidden: { opacity: 0, y: 28 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease } },
 };
 
 function CreativeThread({ plan }: { plan: DirectivePlan }) {
@@ -423,10 +436,10 @@ function CreativeThread({ plan }: { plan: DirectivePlan }) {
   return (
     <motion.section
       aria-label="Fil de création"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      initial={{ opacity: reduce ? 1 : 0, y: reduce ? 0 : 12 }}
+      animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.35, ease }}
+      transition={{ duration: reduce ? 0 : 0.55, ease }}
       className="relative z-10 mx-auto mt-10 w-full max-w-2xl px-6 pb-28"
     >
       <div className="relative">
