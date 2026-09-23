@@ -1,194 +1,158 @@
-export const ALLOWED_GEAR = [
-  "Sony A7V",
-  "Laowa 10mm",
-  "16-35mm",
-  "70-200mm",
-  "Panneau LED RGB",
-  "Trépied",
-  "SmallRig",
-] as const;
+export const FOCALS = ["Laowa 10mm", "16-35mm", "70-200mm"] as const;
 
-export const ALLOWED_FOCALS = ["Laowa 10mm", "16-35mm", "70-200mm"] as const;
+export type Focal = (typeof FOCALS)[number];
 
-export type GearName = (typeof ALLOWED_GEAR)[number];
-export type FocalName = (typeof ALLOWED_FOCALS)[number];
-
-export type ColorSwatch = {
-  name: string;
-  hex: string;
-  note: string;
-};
-
-export type SoundLayer = {
-  layer: string;
-  description: string;
-};
-
-export type GearItem = {
-  name: GearName;
-  usage: string;
-};
-
-export type StoryboardShot = {
-  shot: number;
-  focal: FocalName;
+export type Shot = {
+  focal: Focal;
   movement: string;
-  action: string;
+  angle: string;
 };
 
-export type DirectorPlan = {
-  title: string;
-  pitch: string;
-  duration: string;
-  tone: string;
-  colorimetry: ColorSwatch[];
-  soundDesign: SoundLayer[];
-  gear: GearItem[];
-  storyboard: StoryboardShot[];
+export type DirectivePlan = {
+  directive: string;
+  atmosphere: string;
+  shotlist: Shot[];
+  lighting: string;
+  post_prod: string;
 };
 
-const HEX = /^#[0-9A-Fa-f]{6}$/;
-const FORBIDDEN_MOVE =
-  /drone|gimbal|steadicam|steadycam|grue|slider|crane|ronin|voiture-travelling/i;
-
-const FALLBACK_COLORS: ColorSwatch[] = [
-  { name: "Nuit", hex: "#0B1220", note: "Ombres profondes" },
-  { name: "Sodium", hex: "#7EE7FF", note: "Reflets froids" },
-  { name: "Ambre", hex: "#FF8A3D", note: "Sources chaudes" },
-  { name: "Brume", hex: "#C9D0D6", note: "Hautes lumières" },
-];
+const FORBIDDEN =
+  /dji|ronin|gimbal|steadicam|steadycam|drone|grue|slider|crane|bmpcc|red\s|arri|zeiss|sigma/gi;
 
 function clip(value: unknown, max: number, fallback = ""): string {
-  if (typeof value !== "string") return fallback;
-  const trimmed = value.replace(/\s+/g, " ").trim();
+  if (typeof value !== "string" && typeof value !== "number") return fallback;
+  const trimmed = String(value).replace(/\s+/g, " ").trim();
   if (!trimmed) return fallback;
   return trimmed.slice(0, max);
 }
 
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
+function scrub(value: string): string {
+  return value.replace(FORBIDDEN, "KIT AUTORISÉ").replace(/\s{2,}/g, " ").trim();
 }
 
-export function canonicalGear(name: string): GearName | null {
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function flatten(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") return clip(value, 700);
+  if (Array.isArray(value)) {
+    return value.map((item) => flatten(item)).filter(Boolean).join("  /  ");
+  }
+  const record = asRecord(value);
+  if (!record) return "";
+  return Object.entries(record)
+    .map(([key, entry]) => {
+      const text = flatten(entry);
+      return text ? `${key}: ${text}` : "";
+    })
+    .filter(Boolean)
+    .join("  /  ");
+}
+
+export function canonicalFocal(name: string): Focal {
   const normalized = name
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/objectif|boitier|camera/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
+    .replace(/[\u0300-\u036f]/g, "");
   if (normalized.includes("laowa") || normalized.includes("10mm") || normalized.includes("10 mm")) {
     return "Laowa 10mm";
-  }
-  if (normalized.includes("16-35") || normalized.includes("16 35") || normalized.includes("1635")) {
-    return "16-35mm";
   }
   if (normalized.includes("70-200") || normalized.includes("70 200") || normalized.includes("70200")) {
     return "70-200mm";
   }
-  if (normalized.includes("led") || normalized.includes("rgb") || normalized.includes("panneau")) {
-    return "Panneau LED RGB";
+  if (normalized.includes("16-35") || normalized.includes("16 35") || normalized.includes("1635")) {
+    return "16-35mm";
   }
-  if (normalized.includes("trepied") || normalized.includes("tripod")) {
-    return "Trépied";
-  }
-  if (normalized.includes("smallrig") || normalized.includes("small rig")) {
-    return "SmallRig";
-  }
-  if (normalized.includes("a7v") || normalized.includes("a7 v") || normalized.includes("sony")) {
-    return "Sony A7V";
-  }
-  return null;
-}
-
-function canonicalFocal(name: string): FocalName {
-  const gear = canonicalGear(name);
-  if (gear === "Laowa 10mm" || gear === "16-35mm" || gear === "70-200mm") return gear;
   return "16-35mm";
 }
 
-export function normalizePlan(raw: unknown, idea: string): DirectorPlan {
-  const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+function readShot(entry: unknown): Shot | null {
+  const record = asRecord(entry);
+  if (!record) return null;
+  const action = clip(record.action ?? record.description, 40);
+  const movement = scrub(
+    clip(record.movement ?? record.mouvement ?? record.move, 72, action || "PLAN FIXE"),
+  );
+  const angle = scrub(clip(record.angle ?? record.cadrage ?? record.hauteur, 72, "HAUTEUR D'OEIL"));
+  const focalRaw = clip(record.focal ?? record.focale ?? record.lens ?? record.optique, 80);
+  if (!movement && !focalRaw) return null;
+  return {
+    focal: canonicalFocal(focalRaw),
+    movement: movement || "PLAN FIXE",
+    angle,
+  };
+}
 
-  const colorimetry = asArray(source.colorimetry).flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const item = entry as Record<string, unknown>;
-    const hex = clip(item.hex, 7).toUpperCase();
-    if (!HEX.test(hex)) return [];
-    return [
-      {
-        name: clip(item.name, 32, "Teinte"),
-        hex,
-        note: clip(item.note, 80, "Accent"),
-      },
-    ];
-  });
+export function normalizePlan(raw: unknown, idea: string): DirectivePlan {
+  const source = asRecord(raw) ?? {};
+  const shotlist = (Array.isArray(source.shotlist) ? source.shotlist : [])
+    .map(readShot)
+    .filter((shot): shot is Shot => shot !== null)
+    .slice(0, 8);
 
-  const soundDesign = asArray(source.soundDesign).flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const item = entry as Record<string, unknown>;
-    const description = clip(item.description, 180);
-    if (!description) return [];
-    return [{ layer: clip(item.layer, 40, "Couche"), description }];
-  });
+  const shots =
+    shotlist.length > 0
+      ? shotlist
+      : [{ focal: "16-35mm" as const, movement: "PLAN FIXE", angle: "HAUTEUR D'OEIL" }];
 
-  const seen = new Set<GearName>();
-  const gear = asArray(source.gear).flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const item = entry as Record<string, unknown>;
-    const name = canonicalGear(clip(item.name, 80));
-    if (!name || seen.has(name)) return [];
-    seen.add(name);
-    return [{ name, usage: clip(item.usage, 160, "Utilisé sur le tournage.") }];
-  });
-
-  if (!seen.has("Sony A7V")) {
-    gear.unshift({ name: "Sony A7V", usage: "Boîtier unique du tournage." });
-  }
-
-  const storyboard = asArray(source.storyboard).flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const item = entry as Record<string, unknown>;
-    const action = clip(item.action, 280);
-    if (!action) return [];
-    const movement = clip(item.movement, 80, "Plan fixe");
-    return [
-      {
-        shot: 0,
-        focal: canonicalFocal(clip(item.focal, 40)),
-        movement: FORBIDDEN_MOVE.test(movement) ? "Plan fixe" : movement,
-        action,
-      },
-    ];
-  });
-
-  const shots = (storyboard.length > 0 ? storyboard : [
-    {
-      shot: 0,
-      focal: "16-35mm" as const,
-      movement: "Plan fixe",
-      action: clip(idea, 180, "Ouverture sur l'idée, tenue jusqu'au premier mouvement."),
-    },
-  ])
-    .slice(0, 8)
-    .map((shot, index) => ({ ...shot, shot: index + 1 }));
+  const atmosphere = scrub(
+    flatten(source.atmosphere) || "VISUEL: NON CALÉ  /  SONORE: NON CALÉ",
+  );
+  const lighting = scrub(
+    flatten(source.lighting) || "PANNEAU LED RGB — CYAN 20% / AMBRE 10% — FACE ET CONTOUR",
+  );
+  const post = asRecord(source.post_prod);
+  const postProd = scrub(
+    post
+      ? [
+          flatten(post.resolve ?? post.davinci) &&
+            `RESOLVE // ${flatten(post.resolve ?? post.davinci)}`,
+          flatten(post.premiere ?? post.montage) &&
+            `PREMIERE // ${flatten(post.premiere ?? post.montage)}`,
+        ]
+          .filter(Boolean)
+          .join("  /  ") || flatten(post)
+      : flatten(source.post_prod),
+  );
 
   return {
-    title: clip(source.title, 80, clip(idea, 80, "Sans titre")),
-    pitch: clip(
-      source.pitch,
-      420,
-      "Un court-métrage tenu dans un seul kit, où la lumière et le cadre portent l'idée.",
-    ),
-    duration: clip(source.duration, 24, "4 min"),
-    tone: clip(source.tone, 48, "Nocturne"),
-    colorimetry: (colorimetry.length > 0 ? colorimetry : FALLBACK_COLORS).slice(0, 5),
-    soundDesign: (soundDesign.length > 0
-      ? soundDesign
-      : [{ layer: "Ambiance", description: "Nappe sourde, proche du silence, qui laisse respirer l'image." }]
-    ).slice(0, 4),
-    gear: gear.slice(0, ALLOWED_GEAR.length),
-    storyboard: shots,
+    directive: scrub(clip(source.directive, 90, clip(idea, 90, "SANS TITRE"))),
+    atmosphere,
+    shotlist: shots,
+    lighting,
+    post_prod: postProd || "RESOLVE // GRADING NODAL  /  PREMIERE // MONTAGE",
   };
+}
+
+export function formatStream(plan: DirectivePlan): string {
+  const shots = plan.shotlist
+    .map(
+      (shot, index) =>
+        `  ${String(index + 1).padStart(2, "0")}   FOC ${shot.focal}   /   MOV ${shot.movement}   /   ANG ${shot.angle}`,
+    )
+    .join("\n");
+
+  return [
+    "PACKET // CLEAR",
+    "DIRECTIVE",
+    `  ${plan.directive}`,
+    "",
+    "ATMOSPHERE",
+    `  ${plan.atmosphere}`,
+    "",
+    "SHOTLIST",
+    shots,
+    "",
+    "LIGHTING",
+    `  ${plan.lighting}`,
+    "",
+    "POST_PROD",
+    `  ${plan.post_prod}`,
+  ].join("\n");
+}
+
+export function usedOptics(plan: DirectivePlan): Set<Focal> {
+  return new Set(plan.shotlist.map((shot) => shot.focal));
 }

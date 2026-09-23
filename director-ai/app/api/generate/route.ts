@@ -3,42 +3,33 @@ import { normalizePlan } from "@/lib/plan";
 
 export const runtime = "nodejs";
 
-const SYSTEM_PROMPT = `Tu es Director.AI, directeur de la photographie et assistant réalisateur pour courts-métrages. Tu réponds uniquement avec un objet JSON, en français, sans markdown.
+const SYSTEM_PROMPT = `Tu es l'unité logique 'Director.AI', une intelligence artificielle d'élite spécialisée dans la direction de la photographie et le mentorat créatif.
+CONTRAINTES MATÉRIELLES (L'Arsenal) :
+Tu dois concevoir tes plans EXCLUSIVEMENT avec le matériel suivant :
+* Boîtier : Sony A7V.
+* Optiques : Laowa 10mm, 16-35mm, 70-200mm.
+* Éclairage : Panneaux LED RGB.
+* Machinerie : Trépied, cage SmallRig.
+Interdiction formelle de suggérer du matériel hors de cette liste. Optimise chaque scène pour ce setup.
 
-CONTRAINTE MATÉRIELLE STRICTE.
-Tu ne dois recommander QUE le matériel suivant, et aucun autre :
-- boîtier Sony A7V
-- objectif Laowa 10mm
-- objectif 16-35mm
-- objectif 70-200mm
-- Panneau LED RGB
-- Trépied
-- SmallRig
+WORKFLOW POST-PRODUCTION :
+Tes recommandations de montage et d'étalonnage doivent cibler DaVinci Resolve (color grading nodal) et Premiere Pro.
+FORMAT DE RÉPONSE (JSON structuré) :
+Renvoie un JSON valide avec les clés suivantes :
+* \`directive\`: Titre du projet.
+* \`atmosphere\`: Moodboard visuel et sonore.
+* \`shotlist\`: Un tableau d'objets (focale, mouvement, angle).
+* \`lighting\`: Configuration stricte des panneaux RGB.
+* \`post_prod\`: Directives techniques pour Resolve/Premiere.
 
-Interdit, même si l'idée le suggère : autre boîtier, autre objectif, drone, gimbal, steadicam, grue, slider, filtre, micro, enregistreur, projecteur, haze, réflecteur, ou tout accessoire hors liste.
-Le Sony A7V est toujours le boîtier. Chaque plan utilise exactement une focale parmi : "Laowa 10mm", "16-35mm", "70-200mm".
-Les mouvements sont réalisables au trépied ou à la main avec le SmallRig : plan fixe, pan, tilt, léger déplacement au pas. Pas de vol, pas de grue.
-
-Schéma exact :
-{
-  "title": "titre du court",
-  "pitch": "2 ou 3 phrases, voix de réalisateur",
-  "duration": "durée, ex: 4 min",
-  "tone": "ton en deux ou trois mots",
-  "colorimetry": [{ "name": "nom", "hex": "#RRGGBB", "note": "rôle de la teinte" }],
-  "soundDesign": [{ "layer": "couche", "description": "intention sonore" }],
-  "gear": [{ "name": "nom exact de la liste", "usage": "pourquoi il est là" }],
-  "storyboard": [{ "shot": 1, "focal": "16-35mm", "movement": "plan fixe", "action": "ce que l'on voit" }]
-}
-
-4 couleurs, 3 couches sonores, uniquement le matériel vraiment utilisé, 5 à 7 plans. Les valeurs "name" du gear et "focal" doivent reprendre exactement les libellés autorisés.`;
+Ton ton est froid, technique, incisif et orienté progression de l'utilisateur.`;
 
 export async function POST(request: Request) {
   let payload: unknown;
   try {
     payload = await request.json();
   } catch {
-    return NextResponse.json({ error: "Requête illisible." }, { status: 400 });
+    return NextResponse.json({ error: "PAQUET ILLISIBLE." }, { status: 400 });
   }
 
   const idea =
@@ -51,7 +42,7 @@ export async function POST(request: Request) {
 
   if (idea.length < 2 || idea.length > 500) {
     return NextResponse.json(
-      { error: "Décrivez l'idée en quelques mots, entre 2 et 500 caractères." },
+      { error: "DIRECTIVE INVALIDE. 2 À 500 CARACTÈRES." },
       { status: 400 },
     );
   }
@@ -59,7 +50,7 @@ export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: "Ajoutez OPENAI_API_KEY dans .env.local pour générer un plan." },
+      { error: "CLÉ OPENAI ABSENTE. CHARGEZ OPENAI_API_KEY DANS .ENV.LOCAL." },
       { status: 500 },
     );
   }
@@ -80,23 +71,17 @@ export async function POST(request: Request) {
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Idée de court-métrage : ${idea}` },
+          { role: "user", content: `Directive opérateur : ${idea}` },
         ],
       }),
     });
   } catch {
-    return NextResponse.json(
-      { error: "Impossible de joindre OpenAI. Vérifiez la connexion, puis réessayez." },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: "UPLINK ROMPU. RÉÉMETTEZ." }, { status: 502 });
   }
 
   if (!upstream.ok) {
     console.error("OpenAI error", upstream.status);
-    return NextResponse.json(
-      { error: "La génération a échoué. Réessayez dans un instant." },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: "CŒUR MUET. RÉÉMETTEZ." }, { status: 502 });
   }
 
   const data: unknown = await upstream.json();
@@ -109,20 +94,14 @@ export async function POST(request: Request) {
       : undefined;
 
   if (typeof content !== "string") {
-    return NextResponse.json(
-      { error: "Réponse incomplète. Relancez la génération." },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: "PAQUET INCOMPLET." }, { status: 502 });
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch {
-    return NextResponse.json(
-      { error: "Le plan reçu n'était pas un JSON valide." },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: "JSON CORROMPU." }, { status: 502 });
   }
 
   return NextResponse.json({ plan: normalizePlan(parsed, idea) });

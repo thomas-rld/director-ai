@@ -14,8 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Director.AI",
-  description:
-    "Assistant de réalisation pour courts-métrages : pitch, lumière, son, matériel et storyboard.",
+  description: "Unité logique de direction photo. Directive, arsenal, lumière, post-production.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -24,7 +23,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-void font-sans text-white">{children}</body>
+      <body className="min-h-full bg-black font-mono text-cyan-400">{children}</body>
     </html>
   );
 }
