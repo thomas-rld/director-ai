@@ -7,8 +7,8 @@
 
 html,
 body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: #000;
+  color: #fff;
 }
 
 body {
@@ -16,6 +16,6 @@ body {
 }
 
 ::selection {
-  background: #e0e7ff;
-  color: #0f172a;
+  background: rgba(196, 181, 253, 0.35);
+  color: #fff;
 }
